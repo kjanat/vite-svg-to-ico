@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import sharp from 'sharp';
+import type { PngOptions, ResizeOptions } from 'sharp';
 
 /** Result of rasterizing a single size from the input image. */
 export interface SizedPng {
@@ -7,33 +8,52 @@ export interface SizedPng {
 	buffer: Buffer;
 }
 
+/** Options for {@link generateSizedPngs} and {@link generateIco}. */
+export interface GenerateOptions {
+	/** Square pixel dimensions for each PNG layer. */
+	sizes: number[];
+	/** Whether to use maximum PNG compression (level 9 + adaptive filtering).
+	 * Overridden by explicit values in {@link png} when both are set. */
+	optimize: boolean;
+	/** Sharp resize options merged over defaults.
+	 * `width` and `height` are always set by the per-size value. */
+	resize?: Omit<ResizeOptions, 'width' | 'height'>;
+	/** Sharp PNG output options merged over defaults derived from {@link optimize}. */
+	png?: Omit<PngOptions, 'force'>;
+}
+
+/** Default resize options applied when no overrides are provided. */
+const DEFAULT_RESIZE: Omit<ResizeOptions, 'width' | 'height'> = {
+	fit: 'contain',
+	background: { r: 0, g: 0, b: 0, alpha: 0 },
+};
+
 /**
  * Rasterize an input image to individual per-size PNG buffers.
  *
- * @param input    - Image contents as a Buffer, or a filesystem path to read.
- * @param sizes    - Square pixel dimensions for each PNG layer.
- * @param optimize - Whether to use maximum PNG compression.
+ * @param input - Image contents as a Buffer, or a filesystem path to read.
+ * @param opts  - Generation options including sizes, optimization, and sharp overrides.
  * @returns Array of sized PNG buffers.
  */
 export async function generateSizedPngs(
 	input: Buffer | string,
-	sizes: number[],
-	optimize: boolean,
+	opts: GenerateOptions,
 ): Promise<SizedPng[]> {
 	const inputBuffer = Buffer.isBuffer(input) ? input : await readFile(input);
 
+	const resizeOpts: Omit<ResizeOptions, 'width' | 'height'> = { ...DEFAULT_RESIZE, ...opts.resize };
+	const pngOpts: PngOptions = {
+		compressionLevel: opts.optimize ? 9 : 6,
+		adaptiveFiltering: opts.optimize,
+		...opts.png,
+	};
+
 	return Promise.all(
-		sizes.map(async (size) => ({
+		opts.sizes.map(async (size) => ({
 			size,
 			buffer: await sharp(inputBuffer)
-				.resize(size, size, {
-					fit: 'contain',
-					background: { r: 0, g: 0, b: 0, alpha: 0 },
-				})
-				.png({
-					compressionLevel: optimize ? 9 : 6,
-					adaptiveFiltering: optimize,
-				})
+				.resize(size, size, resizeOpts)
+				.png(pngOpts)
 				.toBuffer(),
 		})),
 	);
@@ -42,17 +62,15 @@ export async function generateSizedPngs(
 /**
  * Rasterize an input image to multiple PNG sizes and pack them into an ICO buffer.
  *
- * @param input    - Image contents as a Buffer, or a filesystem path to read.
- * @param sizes    - Square pixel dimensions for each PNG layer.
- * @param optimize - Whether to use maximum PNG compression.
+ * @param input - Image contents as a Buffer, or a filesystem path to read.
+ * @param opts  - Generation options including sizes, optimization, and sharp overrides.
  * @returns ICO file contents as a {@link Buffer}.
  */
 export async function generateIco(
 	input: Buffer | string,
-	sizes: number[],
-	optimize: boolean,
+	opts: GenerateOptions,
 ): Promise<Buffer> {
-	const pngs = await generateSizedPngs(input, sizes, optimize);
+	const pngs = await generateSizedPngs(input, opts);
 	return packIco(pngs);
 }
 

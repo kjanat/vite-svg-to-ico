@@ -114,17 +114,31 @@ svgToIco({
 
 When `inject` is enabled, existing `<link rel="icon">` and `<link rel="shortcut icon">` tags are stripped from the HTML to prevent duplicates. `apple-touch-icon` tags are preserved.
 
+### Override sharp options
+
+```ts
+svgToIco({
+	input: 'src/pixel-icon.svg',
+	resize: { kernel: 'nearest' }, // crisp pixel art scaling
+	png: { palette: true, colours: 64 }, // indexed color output
+});
+```
+
+The `resize` and `png` objects are merged over sensible defaults — you only need to specify what you want to change. See the [sharp resize](https://sharp.pixelplumbing.com/api-resize) and [sharp PNG](https://sharp.pixelplumbing.com/api-output#png) docs for all available options.
+
 ## Options
 
-| Option          | Type                                  | Default         | Description                                                            |
-| --------------- | ------------------------------------- | --------------- | ---------------------------------------------------------------------- |
-| `input`         | `string`                              | **(required)**  | Path to the source image file (SVG, PNG, JPEG, WebP, AVIF, GIF, TIFF). |
-| `output`        | `string`                              | `'favicon.ico'` | Output filename for the generated ICO.                                 |
-| `sizes`         | `number \| number[]`                  | `[16, 32, 48]`  | Pixel dimensions to rasterize (1-256).                                 |
-| `optimize`      | `boolean`                             | `true`          | Max PNG compression (level 9 + adaptive filtering).                    |
-| `includeSource` | `boolean \| { name?, enabled? }`      | `false`         | Emit the source file alongside the ICO.                                |
-| `emitSizes`     | `boolean \| 'png' \| 'ico' \| 'both'` | `false`         | Emit individual per-size files alongside the combined ICO.             |
-| `inject`        | `boolean \| 'minimal' \| 'full'`      | `false`         | Inject `<link>` tags for generated favicons into `index.html`.         |
+| Option          | Type                                  | Default                                       | Description                                                            |
+| --------------- | ------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------- |
+| `input`         | `string`                              | **(required)**                                | Path to the source image file (SVG, PNG, JPEG, WebP, AVIF, GIF, TIFF). |
+| `output`        | `string`                              | `'favicon.ico'`                               | Output filename for the generated ICO.                                 |
+| `sizes`         | `number \| number[]`                  | `[16, 32, 48]`                                | Pixel dimensions to rasterize (1-256).                                 |
+| `optimize`      | `boolean`                             | `true`                                        | Max PNG compression (level 9 + adaptive filtering).                    |
+| `includeSource` | `boolean \| { name?, enabled? }`      | `false`                                       | Emit the source file alongside the ICO.                                |
+| `emitSizes`     | `boolean \| 'png' \| 'ico' \| 'both'` | `false`                                       | Emit individual per-size files alongside the combined ICO.             |
+| `inject`        | `boolean \| 'minimal' \| 'full'`      | `false`                                       | Inject `<link>` tags for generated favicons into `index.html`.         |
+| `resize`        | `sharp.ResizeOptions`                 | `{ fit: 'contain', background: transparent }` | Sharp resize options (width/height set automatically per size).        |
+| `png`           | `sharp.PngOptions`                    | Derived from `optimize`                       | Sharp PNG output options. Explicit values override `optimize`.         |
 
 ### `emitSizes` details
 

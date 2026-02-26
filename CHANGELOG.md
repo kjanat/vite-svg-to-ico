@@ -16,17 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exported `generateSizedPngs()` and `packIco()` from `ico.ts` for composable usage.
 - Runtime validation of `emitSizes` and `inject` string values in `configResolved`.
 - New type exports: `EmitSizesFormat`, `InjectMode`.
+- `resize` option: forward sharp `ResizeOptions` (e.g., `kernel: 'nearest'` for pixel art, custom `background`).
+- `png` option: forward sharp `PngOptions` (e.g., `palette: true`, custom `compressionLevel`). Merges over `optimize` defaults.
+- `GenerateOptions` interface exported for programmatic `generateSizedPngs()` usage.
+- `EMIT_SIZES_FORMATS` and `INJECT_MODES` const arrays exported (single source of truth for type + validation).
 
 ### Changed
 
 - `includeSource` serves correct `Content-Type` for non-SVG inputs (was hardcoded to `image/svg+xml`).
 - Serve `transformIndexHtml` returns structured `{ html, tags }` instead of raw string manipulation.
 - `packIco()` signature simplified: accepts `SizedPng[]` instead of separate `Buffer[]` + `number[]`.
+- `generateSizedPngs()` now accepts a `GenerateOptions` object instead of positional args.
+- Validation of `emitSizes`/`inject` string values now derived from const arrays instead of duplicated sets.
 
 ### Fixed
 
 - HMR `handleHotUpdate` compared absolute `file` path to possibly-relative `input`; now resolves `input` to absolute via `config.root`.
 - `.jpg` and `.tif` extensions produced invalid MIME types (`image/jpg`, `image/tif`); now normalized to `image/jpeg` and `image/tiff`.
+- Empty `sizes: []` now throws instead of producing a degenerate 6-byte ICO.
+- Empty `input: ''` now reports "must be a non-empty string" instead of misleading "unsupported format" error.
+- ICO endpoint fallback now populates per-size cache to avoid redundant `generateSizedPngs` calls.
 
 ## [1.0.0] - 2026-02-26
 

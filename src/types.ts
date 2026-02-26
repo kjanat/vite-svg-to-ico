@@ -1,3 +1,5 @@
+import type { PngOptions, ResizeOptions } from 'sharp';
+
 /** Configuration for the [`vite-svg-to-ico`](https://github.com/kjanat/vite-svg-to-ico "GitHub") plugin.
  * @see https://npmjs.com/package/vite-svg-to-ico#options
  */
@@ -39,6 +41,24 @@ export interface PluginOptions {
 	 * - `false` — no injection
 	 * @default false */
 	inject?: boolean | InjectMode;
+	/** Sharp resize options forwarded to `sharp().resize()`.
+	 *
+	 * `width` and `height` are always set by the per-size value and cannot be overridden.
+	 * Values are merged over the defaults, so you only need to specify what you want to change.
+	 *
+	 * @default { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }
+	 * @example { kernel: 'nearest' }  // pixel art
+	 * @example { background: '#fff' } // opaque background for JPEG sources
+	 * @example { fit: 'cover' }       // crop instead of letterbox */
+	resize?: Omit<ResizeOptions, 'width' | 'height'>;
+	/** Sharp PNG output options forwarded to `sharp().png()`.
+	 *
+	 * When set, values are merged over the defaults derived from {@link optimize}.
+	 * Explicit values here take precedence over the `optimize` shorthand.
+	 *
+	 * @example { palette: true, colours: 64 } // indexed color PNG
+	 * @example { compressionLevel: 4 }        // faster compression */
+	png?: Omit<PngOptions, 'force'>;
 }
 
 /** Common ICO pixel dimensions with IDE autocompletion; any integer 1–256 is accepted. */
@@ -54,11 +74,15 @@ export interface IncludeSourceOptions {
 	enabled?: boolean;
 }
 
+/** Valid string values for {@link PluginOptions.emitSizes}. */
+export const EMIT_SIZES_FORMATS = ['png', 'ico', 'both'] as const;
 /** Format for individually-emitted per-size files. */
-export type EmitSizesFormat = 'png' | 'ico' | 'both';
+export type EmitSizesFormat = (typeof EMIT_SIZES_FORMATS)[number];
 
+/** Valid string values for {@link PluginOptions.inject}. */
+export const INJECT_MODES = ['minimal', 'full'] as const;
 /** Mode for HTML `<link>` tag injection. */
-export type InjectMode = 'minimal' | 'full';
+export type InjectMode = (typeof INJECT_MODES)[number];
 
 /** Supported input image formats (sharp-compatible). */
 export const SUPPORTED_EXTENSIONS = new Set([

@@ -5,12 +5,12 @@ import type { HtmlTagDescriptor, Plugin } from 'vite';
 import { buildFaviconTags, INJECT_ICON_LINK_RE } from './html.ts';
 import type { SizedFileInfo } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
-import type { SizedPng } from './ico.ts';
+import type { GenerateOptions, SizedPng } from './ico.ts';
 import { DEBUG, Instrumentation } from './instrumentation.ts';
 import type { EmitSizesFormat, IconSize, IncludeSourceOptions, InjectMode, PluginOptions } from './types.ts';
-import { SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from './types.ts';
+import { EMIT_SIZES_FORMATS, INJECT_MODES, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from './types.ts';
 
-export type { EmitSizesFormat, IconSize, IncludeSourceOptions, InjectMode, PluginOptions };
+export type { EmitSizesFormat, GenerateOptions, IconSize, IncludeSourceOptions, InjectMode, PluginOptions };
 
 /**
  * Vite plugin that converts an image source into a multi-size `.ico` favicon.
@@ -73,6 +73,16 @@ export type { EmitSizesFormat, IconSize, IncludeSourceOptions, InjectMode, Plugi
  *   emitSizes: true,
  * })
  * ```
+ *
+ * @example
+ * ```ts
+ * // Override sharp resize/PNG options
+ * svgToIco({
+ *   input: 'src/pixel-icon.svg',
+ *   resize: { kernel: 'nearest' },  // crisp pixel art
+ *   png: { palette: true, colours: 64 },
+ * })
+ * ```
  */
 export default function svgToIco(opts: PluginOptions): Plugin[] {
 	let generatedIco: Buffer | null = null;
@@ -87,6 +97,8 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		includeSource: rawIncludeSource = false,
 		emitSizes: rawEmitSizes = false,
 		inject: rawInject = false,
+		resize: resizeOpts,
+		png: pngOpts,
 	} = opts;
 
 	const sizes = Array.isArray(rawSizes) ? rawSizes : [rawSizes];
@@ -94,6 +106,9 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 	const sourceOpts: { enabled: boolean; name: string } = typeof rawIncludeSource === 'object'
 		? { enabled: rawIncludeSource.enabled ?? true, name: rawIncludeSource.name ?? basename(input) }
 		: { enabled: rawIncludeSource, name: basename(input) };
+
+	/** Shared generation options threaded to every `generateSizedPngs` call. */
+	const genOpts: GenerateOptions = { sizes, optimize, resize: resizeOpts, png: pngOpts };
 
 	// --- Input format detection ---
 	const inputExt = extname(input).toLowerCase();
@@ -195,13 +210,17 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			configResolved(config) {
 				logger = config.logger;
 				if (!input) {
-					throw new Error('[svg-to-ico] `input` option is required');
+					throw new Error('[svg-to-ico] `input` must be a non-empty string');
 				}
 
 				if (!SUPPORTED_EXTENSIONS.has(inputExt)) {
 					throw new Error(
 						`[svg-to-ico] Unsupported input format: "${inputExt}". Supported: ${[...SUPPORTED_EXTENSIONS].join(', ')}`,
 					);
+				}
+
+				if (sizes.length === 0) {
+					throw new Error('[svg-to-ico] `sizes` must contain at least one value');
 				}
 
 				const invalid = sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
@@ -211,17 +230,19 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					);
 				}
 
-				const validEmitSizes: Set<string> = new Set(['png', 'ico', 'both']);
-				if (typeof rawEmitSizes === 'string' && !validEmitSizes.has(rawEmitSizes)) {
+				if (typeof rawEmitSizes === 'string' && !(EMIT_SIZES_FORMATS as readonly string[]).includes(rawEmitSizes)) {
 					throw new Error(
-						`[svg-to-ico] Invalid emitSizes value: "${rawEmitSizes}". Must be boolean, 'png', 'ico', or 'both'.`,
+						`[svg-to-ico] Invalid emitSizes value: "${rawEmitSizes}". Must be boolean, ${
+							EMIT_SIZES_FORMATS.map((f) => `'${f}'`).join(', ')
+						}.`,
 					);
 				}
 
-				const validInject: Set<string> = new Set(['minimal', 'full']);
-				if (typeof rawInject === 'string' && !validInject.has(rawInject)) {
+				if (typeof rawInject === 'string' && !(INJECT_MODES as readonly string[]).includes(rawInject)) {
 					throw new Error(
-						`[svg-to-ico] Invalid inject value: "${rawInject}". Must be boolean, 'minimal', or 'full'.`,
+						`[svg-to-ico] Invalid inject value: "${rawInject}". Must be boolean, ${
+							INJECT_MODES.map((m) => `'${m}'`).join(', ')
+						}.`,
 					);
 				}
 
@@ -240,8 +261,9 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 				server.middlewares.use(`/${output}`, async (_req, res, next) => {
 					try {
 						if (!generatedIco) {
-							const pngs = await generateSizedPngs(resolvedInput, sizes, optimize);
+							const pngs = await generateSizedPngs(resolvedInput, genOpts);
 							generatedIco = packIco(pngs);
+							if (emitSizesFormat) generatedPngs = pngs;
 						}
 						res.setHeader('Content-Type', 'image/x-icon');
 						res.setHeader('Cache-Control', 'no-cache');
@@ -271,7 +293,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 							server.middlewares.use(`/${outputStem}-${size}x${size}.png`, async (_req, res, next) => {
 								try {
 									if (!generatedPngs) {
-										generatedPngs = await generateSizedPngs(resolvedInput, sizes, optimize);
+										generatedPngs = await generateSizedPngs(resolvedInput, genOpts);
 									}
 									const png = generatedPngs.find((p) => p.size === size);
 									if (!png) {
@@ -290,7 +312,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 							server.middlewares.use(`/${outputStem}-${size}x${size}.ico`, async (_req, res, next) => {
 								try {
 									if (!generatedPngs) {
-										generatedPngs = await generateSizedPngs(resolvedInput, sizes, optimize);
+										generatedPngs = await generateSizedPngs(resolvedInput, genOpts);
 									}
 									const png = generatedPngs.find((p) => p.size === size);
 									if (!png) {
@@ -344,7 +366,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			async buildStart() {
 				const I = new Instrumentation();
 				I.start('Generate ICO (serve)');
-				const pngs = await generateSizedPngs(resolvedInput, sizes, optimize);
+				const pngs = await generateSizedPngs(resolvedInput, genOpts);
 				generatedIco = packIco(pngs);
 				if (emitSizesFormat) {
 					generatedPngs = pngs;
@@ -356,7 +378,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 				if (file === resolvedInput) {
 					const I = new Instrumentation();
 					I.start('Regenerate ICO (HMR)');
-					const pngs = await generateSizedPngs(resolvedInput, sizes, optimize);
+					const pngs = await generateSizedPngs(resolvedInput, genOpts);
 					generatedIco = packIco(pngs);
 					if (emitSizesFormat) {
 						generatedPngs = pngs;
@@ -384,7 +406,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 
 				try {
 					const inputBuffer = await readFile(resolvedInput);
-					const pngs = await generateSizedPngs(inputBuffer, sizes, optimize);
+					const pngs = await generateSizedPngs(inputBuffer, genOpts);
 					const icoBuffer = packIco(pngs);
 
 					this.emitFile({
