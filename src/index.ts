@@ -86,6 +86,32 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		? { enabled: rawIncludeSource.enabled ?? true, name: rawIncludeSource.name ?? basename(input) }
 		: { enabled: rawIncludeSource, name: basename(input) };
 
+	/** Cache-bust key appended to icon hrefs; updated on each HMR cycle. */
+	let cacheId = Date.now().toString(36);
+
+	/** Matches `<link>` tags whose `rel` contains `icon` (covers `icon`, `shortcut icon`, `apple-touch-icon`). */
+	const ICON_LINK_RE = /(<link\b[^>]*\brel\s*=\s*["'][^"']*icon[^"']*["'][^>]*\bhref\s*=\s*["'])([^"']+)(["'][^>]*>)/gi;
+
+	/**
+	 * Small client-side HMR snippet injected during dev.
+	 *
+	 * Listens for the `svg-to-ico:update` custom event and swaps every
+	 * `<link rel="…icon…">` href with a fresh cache-bust param so the
+	 * browser re-fetches the favicon without a full page reload.
+	 */
+	const hmrClient = `
+<script type="module">
+if (import.meta.hot) {
+	import.meta.hot.on('svg-to-ico:update', (data) => {
+		document.querySelectorAll('link[rel*="icon"]').forEach((link) => {
+			const url = new URL(link.href);
+			url.searchParams.set('v', data.cacheId);
+			link.href = url.toString();
+		});
+	});
+}
+</script>`;
+
 	return [
 		{
 			name: 'svg-to-ico:config',
@@ -117,6 +143,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 							generatedIco = await generateIco(input, sizes, optimize);
 						}
 						res.setHeader('Content-Type', 'image/x-icon');
+						res.setHeader('Cache-Control', 'no-cache');
 						res.end(generatedIco);
 					} catch (e) {
 						next(e);
@@ -136,6 +163,14 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 				}
 			},
 
+			transformIndexHtml(html) {
+				const tagged = html.replace(ICON_LINK_RE, (_match, before, href, after) => {
+					const sep = href.includes('?') ? '&' : '?';
+					return `${before}${href}${sep}v=${cacheId}${after}`;
+				});
+				return tagged.replace('</head>', `${hmrClient}\n</head>`);
+			},
+
 			async buildStart() {
 				const I = new Instrumentation();
 				I.start('Generate ICO (serve)');
@@ -150,7 +185,12 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					generatedIco = await generateIco(input, sizes, optimize);
 					I.end('Regenerate ICO (HMR)');
 
-					server.hot.send({ type: 'full-reload', path: `/${output}` });
+					cacheId = Date.now().toString(36);
+					server.hot.send({
+						type: 'custom',
+						event: 'svg-to-ico:update',
+						data: { cacheId },
+					});
 				}
 			},
 		},
