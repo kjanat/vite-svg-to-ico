@@ -87,4 +87,33 @@ describe('config plugin validation', () => {
 	it('passes with valid options', () => {
 		expect(() => runConfigResolved({ input: 'icon.svg', sizes: [16, 32, 256] })).not.toThrow();
 	});
+
+	it('throws on invalid dev.injection string', () => {
+		expect(() => runConfigResolved({ input: 'icon.svg', dev: { injection: 'bad' as any } })).toThrow(
+			'Invalid dev.injection value',
+		);
+	});
+});
+
+describe('dev option', () => {
+	it('dev: false excludes serve plugin', () => {
+		const plugins = svgToIco({ input: FIXTURE, dev: false });
+		expect(plugins.some((p) => p.name === 'svg-to-ico:serve')).toBe(false);
+		// config and build plugins still present
+		expect(plugins.some((p) => p.name === 'svg-to-ico:config')).toBe(true);
+		expect(plugins.some((p) => p.name === 'svg-to-ico:build')).toBe(true);
+	});
+
+	it('dev: true includes serve plugin (default behavior)', () => {
+		const plugins = svgToIco({ input: FIXTURE, dev: true });
+		expect(plugins.some((p) => p.name === 'svg-to-ico:serve')).toBe(true);
+	});
+
+	it('dev: { injection: "shim" } does not throw', () => {
+		expect(() => svgToIco({ input: FIXTURE, dev: { injection: 'shim' } })).not.toThrow();
+	});
+
+	it('dev: { hmr: false } does not throw', () => {
+		expect(() => svgToIco({ input: FIXTURE, dev: { hmr: false } })).not.toThrow();
+	});
 });

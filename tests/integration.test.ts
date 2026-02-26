@@ -327,3 +327,90 @@ describe('integration: dev server', () => {
 		expect(res.headers.get('cache-control')).toBe('no-cache');
 	});
 });
+
+describe('integration: dev option', () => {
+	it('dev: false returns 404 for favicon.ico', async () => {
+		const srv = await createServer({
+			root: FIXTURES,
+			logLevel: 'silent',
+			server: { port: 0, strictPort: false },
+			plugins: [
+				svgToIco({ input: 'icon.svg', dev: false }),
+			],
+		});
+		await srv.listen();
+		try {
+			const res = await devFetch(srv, '/favicon.ico');
+			expect(res.status).not.toBe(200);
+		} finally {
+			await srv.close();
+		}
+	});
+
+	it('dev: { injection: "shim" } injects shim script instead of link tags', async () => {
+		const srv = await createServer({
+			root: FIXTURES,
+			logLevel: 'silent',
+			server: { port: 0, strictPort: false },
+			plugins: [
+				svgToIco({ input: 'icon.svg', inject: 'minimal', dev: { injection: 'shim' } }),
+			],
+		});
+		await srv.listen();
+		try {
+			const res = await devFetch(srv, '/');
+			const html = await res.text();
+			// Shim script creates links dynamically
+			expect(html).toContain('document.createElement("link")');
+			expect(html).toContain('favicon.ico');
+			// Should have HMR code by default
+			expect(html).toContain('import.meta.hot');
+		} finally {
+			await srv.close();
+		}
+	});
+
+	it('dev: { hmr: false } does not inject HMR script', async () => {
+		const srv = await createServer({
+			root: FIXTURES,
+			logLevel: 'silent',
+			server: { port: 0, strictPort: false },
+			plugins: [
+				svgToIco({ input: 'icon.svg', inject: 'minimal', dev: { hmr: false } }),
+			],
+		});
+		await srv.listen();
+		try {
+			const res = await devFetch(srv, '/');
+			const html = await res.text();
+			// Should have link tags (transform mode)
+			expect(html).toContain('favicon.ico');
+			// Should NOT have HMR code
+			expect(html).not.toContain('svg-to-ico:update');
+		} finally {
+			await srv.close();
+		}
+	});
+
+	it('dev: { injection: "shim", hmr: false } shim has no HMR code', async () => {
+		const srv = await createServer({
+			root: FIXTURES,
+			logLevel: 'silent',
+			server: { port: 0, strictPort: false },
+			plugins: [
+				svgToIco({ input: 'icon.svg', inject: 'minimal', dev: { injection: 'shim', hmr: false } }),
+			],
+		});
+		await srv.listen();
+		try {
+			const res = await devFetch(srv, '/');
+			const html = await res.text();
+			// Has shim
+			expect(html).toContain('document.createElement("link")');
+			// No HMR
+			expect(html).not.toContain('import.meta.hot');
+		} finally {
+			await srv.close();
+		}
+	});
+});
