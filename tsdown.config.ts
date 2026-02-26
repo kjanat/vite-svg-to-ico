@@ -11,4 +11,6 @@ export default defineConfig({
 	target: 'esnext',
 	unused: true,
 	onSuccess: 'bun fmt package.json',
+	unbundle: true,
+	minify: 'dce-only',
 });

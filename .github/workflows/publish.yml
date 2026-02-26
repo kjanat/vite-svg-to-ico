@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://www.schemastore.org/github-workflow.json
+---
+name: Publish to npm
+on:
+  push: { tags: ["v*.*.*"] }
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: ${{ steps.version.outputs.npm_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: lts/*, registry-url: https://registry.npmjs.org }
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - id: version
+        run: |
+          VERSION=$(jq -r .version package.json)
+          NAME=$(jq -r .name package.json)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "npm_url=https://www.npmjs.com/package/${NAME}/v/${VERSION}" |& tee -a "$GITHUB_OUTPUT"
+
+      # Stamp release version from the git tag into package.json
+      - name: Set package version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: bun pm version from-git --allow-same-version --no-git-tag-version
+
+      - id: tarball
+        run: bun bd && bun tar
+
+      # bun publish lacks --provenance; use npm for signed provenance
+      - run: npm i -g npm && npm publish --provenance --access public "${TARBALL}"
+        env: { TARBALL: "${{ steps.tarball.outputs.tar }}" }
