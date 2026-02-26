@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `emitSizes` option to emit individual per-size files (`true`/`'png'`/`'ico'`/`'both'`) alongside the combined ICO.
+- `inject` option to auto-inject `<link>` tags into HTML (`true`/`'minimal'`/`'full'`); strips existing `<link rel="icon">` tags while preserving `apple-touch-icon`.
+- Non-SVG input support: PNG, JPEG, WebP, AVIF, GIF, and TIFF via sharp format detection.
+- New `src/html.ts` module with `buildFaviconTags()` pure function and `INJECT_ICON_LINK_RE` regex.
+- Exported `generateSizedPngs()` and `packIco()` from `ico.ts` for composable usage.
+- Runtime validation of `emitSizes` and `inject` string values in `configResolved`.
+- New type exports: `EmitSizesFormat`, `InjectMode`.
+
+### Changed
+
+- `includeSource` serves correct `Content-Type` for non-SVG inputs (was hardcoded to `image/svg+xml`).
+- Serve `transformIndexHtml` returns structured `{ html, tags }` instead of raw string manipulation.
+- `packIco()` signature simplified: accepts `SizedPng[]` instead of separate `Buffer[]` + `number[]`.
+
+### Fixed
+
+- HMR `handleHotUpdate` compared absolute `file` path to possibly-relative `input`; now resolves `input` to absolute via `config.root`.
+- `.jpg` and `.tif` extensions produced invalid MIME types (`image/jpg`, `image/tif`); now normalized to `image/jpeg` and `image/tiff`.
+
 ## [1.0.0] - 2026-02-26
 
 ### Added
