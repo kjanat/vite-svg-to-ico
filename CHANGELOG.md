@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `sharp.optimize` — toggle max PNG compression.
   - `sharp.resize` — forward sharp `ResizeOptions` (e.g., `kernel: 'nearest'` for pixel art).
   - `sharp.png` — forward sharp `PngOptions` (e.g., `palette: true`, custom `compressionLevel`).
+- `bun` export condition for direct TypeScript source resolution in Bun.
+- Conditional exports (`bun` → `default`) with proper `./package.json` subpath.
 - `dev` option for fine-grained dev-server control (`boolean | DevOptions`):
   - `dev: false` disables the serve plugin entirely (build-only mode).
   - `dev: { injection: 'shim' }` injects a runtime script that dynamically manages `<link>` tags instead of rewriting HTML via `transformIndexHtml` — useful for backend-rendered HTML or SPA shells.
