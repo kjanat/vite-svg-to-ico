@@ -15,7 +15,7 @@
 		"url": "https://github.com/kjanat/vite-svg-to-ico"
 	},
 	"license": "MIT",
-	"author": "kjanat",
+	"author": "Kaj Kowalski <info@kajkowalski.nl> (https://github.com/kjanat)",
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
@@ -29,6 +29,8 @@
 		"build": "tsdown",
 		"dev": "tsdown --watch",
 		"fmt": "dprint fmt",
+		"prepack": "bunx prettier --write README.md",
+		"prepublish": "bun bd",
 		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
