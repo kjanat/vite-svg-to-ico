@@ -9,33 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `dev` option for fine-grained dev-server control (`boolean | DevOptions`).
+- `emit` option object for output control:
+  - `emit.source` — emit the source file alongside the ICO (`boolean | { name?, enabled? }`).
+  - `emit.sizes` — emit individual per-size files (`true`/`'png'`/`'ico'`/`'both'`).
+  - `emit.inject` — auto-inject `<link>` tags into HTML (`true`/`'minimal'`/`'full'`); strips existing `<link rel="icon">` tags while preserving `apple-touch-icon`.
+- `sharp` option object for image processing control:
+  - `sharp.optimize` — toggle max PNG compression.
+  - `sharp.resize` — forward sharp `ResizeOptions` (e.g., `kernel: 'nearest'` for pixel art).
+  - `sharp.png` — forward sharp `PngOptions` (e.g., `palette: true`, custom `compressionLevel`).
+- `dev` option for fine-grained dev-server control (`boolean | DevOptions`):
   - `dev: false` disables the serve plugin entirely (build-only mode).
   - `dev: { injection: 'shim' }` injects a runtime script that dynamically manages `<link>` tags instead of rewriting HTML via `transformIndexHtml` — useful for backend-rendered HTML or SPA shells.
   - `dev: { hmr: false }` disables favicon hot-reload on source file changes.
-- New type exports: `DevOptions`, `DevInjection`.
-- `DEV_INJECTIONS` const array exported for validation.
-- Complete JSDoc/TSDoc coverage across all source files.
-- Comprehensive test suite: 74 tests covering unit, plugin validation, and integration (real Vite builds + dev server).
-- `emitSizes` option to emit individual per-size files (`true`/`'png'`/`'ico'`/`'both'`) alongside the combined ICO.
-- `inject` option to auto-inject `<link>` tags into HTML (`true`/`'minimal'`/`'full'`); strips existing `<link rel="icon">` tags while preserving `apple-touch-icon`.
 - Non-SVG input support: PNG, JPEG, WebP, AVIF, GIF, and TIFF via sharp format detection.
 - New `src/html.ts` module with `buildFaviconTags()` pure function and `INJECT_ICON_LINK_RE` regex.
 - Exported `generateSizedPngs()` and `packIco()` from `ico.ts` for composable usage.
-- Runtime validation of `emitSizes`, `inject`, and `dev.injection` string values in `configResolved`.
-- New type exports: `EmitSizesFormat`, `InjectMode`.
-- `resize` option: forward sharp `ResizeOptions` (e.g., `kernel: 'nearest'` for pixel art, custom `background`).
-- `png` option: forward sharp `PngOptions` (e.g., `palette: true`, custom `compressionLevel`). Merges over `optimize` defaults.
-- `GenerateOptions` interface exported for programmatic `generateSizedPngs()` usage.
-- `EMIT_SIZES_FORMATS` and `INJECT_MODES` const arrays exported (single source of truth for type + validation).
+- Runtime validation of `emit.sizes`, `emit.inject`, and `dev.injection` string values in `configResolved`.
+- New type exports: `EmitOptions`, `SharpOptions`, `EmitSizesFormat`, `InjectMode`, `DevOptions`, `DevInjection`, `GenerateOptions`.
+- `EMIT_SIZES_FORMATS`, `INJECT_MODES`, and `DEV_INJECTIONS` const arrays exported.
+- Complete JSDoc/TSDoc coverage across all source files.
+- Comprehensive test suite: 74 tests covering unit, plugin validation, and integration (real Vite builds + dev server).
 
 ### Changed
 
-- `includeSource` serves correct `Content-Type` for non-SVG inputs (was hardcoded to `image/svg+xml`).
+- **BREAKING:** Plugin options restructured from 10 top-level keys to 6 for better DX.
+- `emit.source` serves correct `Content-Type` for non-SVG inputs (was hardcoded to `image/svg+xml`).
 - Serve `transformIndexHtml` returns structured `{ html, tags }` instead of raw string manipulation.
 - `packIco()` signature simplified: accepts `SizedPng[]` instead of separate `Buffer[]` + `number[]`.
 - `generateSizedPngs()` now accepts a `GenerateOptions` object instead of positional args.
-- Validation of `emitSizes`/`inject` string values now derived from const arrays instead of duplicated sets.
+- Validation of option string values now derived from const arrays instead of duplicated sets.
 
 ### Fixed
 

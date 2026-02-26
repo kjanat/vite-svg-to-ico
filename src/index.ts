@@ -7,10 +7,10 @@ import type { SizedFileInfo } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
 import type { GenerateOptions, SizedPng } from './ico.ts';
 import { DEBUG, Instrumentation } from './instrumentation.ts';
-import type { DevInjection, DevOptions, EmitSizesFormat, IconSize, IncludeSourceOptions, InjectMode, PluginOptions } from './types.ts';
+import type { DevInjection, DevOptions, EmitOptions, EmitSizesFormat, IconSize, IncludeSourceOptions, InjectMode, PluginOptions, SharpOptions } from './types.ts';
 import { DEV_INJECTIONS, EMIT_SIZES_FORMATS, INJECT_MODES, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from './types.ts';
 
-export type { DevInjection, DevOptions, EmitSizesFormat, GenerateOptions, IconSize, IncludeSourceOptions, InjectMode, PluginOptions };
+export type { DevInjection, DevOptions, EmitOptions, EmitSizesFormat, GenerateOptions, IconSize, IncludeSourceOptions, InjectMode, PluginOptions, SharpOptions };
 
 /**
  * Vite plugin that converts an image source into a multi-size `.ico` favicon.
@@ -50,7 +50,7 @@ export type { DevInjection, DevOptions, EmitSizesFormat, GenerateOptions, IconSi
  * // Emit individual per-size PNGs alongside the ICO
  * svgToIco({
  *   input: 'src/icon.svg',
- *   emitSizes: true,
+ *   emit: { sizes: true },
  * })
  * ```
  *
@@ -59,8 +59,7 @@ export type { DevInjection, DevOptions, EmitSizesFormat, GenerateOptions, IconSi
  * // Auto-inject favicon link tags into HTML
  * svgToIco({
  *   input: 'src/icon.svg',
- *   includeSource: true,
- *   inject: true,
+ *   emit: { source: true, inject: true },
  * })
  * ```
  *
@@ -69,8 +68,7 @@ export type { DevInjection, DevOptions, EmitSizesFormat, GenerateOptions, IconSi
  * // Use a PNG source instead of SVG
  * svgToIco({
  *   input: 'src/icon.png',
- *   inject: 'full',
- *   emitSizes: true,
+ *   emit: { inject: 'full', sizes: true },
  * })
  * ```
  *
@@ -79,8 +77,10 @@ export type { DevInjection, DevOptions, EmitSizesFormat, GenerateOptions, IconSi
  * // Override sharp resize/PNG options
  * svgToIco({
  *   input: 'src/pixel-icon.svg',
- *   resize: { kernel: 'nearest' },  // crisp pixel art
- *   png: { palette: true, colours: 64 },
+ *   sharp: {
+ *     resize: { kernel: 'nearest' },  // crisp pixel art
+ *     png: { palette: true, colours: 64 },
+ *   },
  * })
  * ```
  */
@@ -93,14 +93,17 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		input,
 		output = 'favicon.ico',
 		sizes: rawSizes = [16, 32, 48],
-		optimize = true,
-		includeSource: rawIncludeSource = false,
-		emitSizes: rawEmitSizes = false,
-		inject: rawInject = false,
+		emit: emitOpts,
+		sharp: sharpOpts,
 		dev: rawDev = true,
-		resize: resizeOpts,
-		png: pngOpts,
 	} = opts;
+
+	const optimize = sharpOpts?.optimize ?? true;
+	const rawIncludeSource = emitOpts?.source ?? false;
+	const rawEmitSizes = emitOpts?.sizes ?? false;
+	const rawInject = emitOpts?.inject ?? false;
+	const resizeOpts = sharpOpts?.resize;
+	const pngOpts = sharpOpts?.png;
 
 	const sizes = Array.isArray(rawSizes) ? rawSizes : [rawSizes];
 
@@ -112,7 +115,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 
 	const sourceOpts: { enabled: boolean; name: string } = typeof rawIncludeSource === 'object'
 		? { enabled: rawIncludeSource.enabled ?? true, name: rawIncludeSource.name ?? basename(input) }
-		: { enabled: rawIncludeSource, name: basename(input) };
+		: { enabled: !!rawIncludeSource, name: basename(input) };
 
 	/** Shared generation options threaded to every `generateSizedPngs` call. */
 	const genOpts: GenerateOptions = { sizes, optimize, resize: resizeOpts, png: pngOpts };

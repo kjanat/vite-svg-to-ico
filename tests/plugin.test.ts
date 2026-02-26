@@ -32,13 +32,13 @@ describe('svgToIco plugin factory', () => {
 
 	it('accepts all emitSizes formats', () => {
 		for (const fmt of ['png', 'ico', 'both', true, false] as const) {
-			expect(() => svgToIco({ input: FIXTURE, emitSizes: fmt })).not.toThrow();
+			expect(() => svgToIco({ input: FIXTURE, emit: { sizes: fmt } })).not.toThrow();
 		}
 	});
 
 	it('accepts all inject modes', () => {
 		for (const mode of ['minimal', 'full', true, false] as const) {
-			expect(() => svgToIco({ input: FIXTURE, inject: mode })).not.toThrow();
+			expect(() => svgToIco({ input: FIXTURE, emit: { inject: mode } })).not.toThrow();
 		}
 	});
 });
@@ -73,13 +73,13 @@ describe('config plugin validation', () => {
 	});
 
 	it('throws on invalid emitSizes string', () => {
-		expect(() => runConfigResolved({ input: 'icon.svg', emitSizes: 'bad' as any })).toThrow(
+		expect(() => runConfigResolved({ input: 'icon.svg', emit: { sizes: 'bad' as any } })).toThrow(
 			'Invalid emitSizes value',
 		);
 	});
 
 	it('throws on invalid inject string', () => {
-		expect(() => runConfigResolved({ input: 'icon.svg', inject: 'bad' as any })).toThrow(
+		expect(() => runConfigResolved({ input: 'icon.svg', emit: { inject: 'bad' as any } })).toThrow(
 			'Invalid inject value',
 		);
 	});

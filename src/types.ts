@@ -20,15 +20,27 @@ export interface PluginOptions {
 	 * @default [16, 32, 48]
 	 */
 	sizes?: IconSize | IconSize[];
-	/** Apply maximum PNG compression (level 9 + adaptive filtering).
+	/** Control what gets emitted and how HTML is modified. */
+	emit?: EmitOptions;
+	/** Sharp image processing options. */
+	sharp?: SharpOptions;
+	/** Control dev-server behavior.
+	 *
+	 * - `true` — enable with defaults (default)
+	 * - `false` — disable serve plugin entirely (build-only)
+	 * - Object — fine-grained control
 	 * @default true */
-	optimize?: boolean;
-	/** Copy over the input file to the output directory alongside the ICO.
+	dev?: boolean | DevOptions;
+}
+
+/** Options controlling what additional files are emitted and how HTML is modified. */
+export interface EmitOptions {
+	/** Copy the source file to output alongside the ICO.
 	 *
 	 * Pass `true` to emit with the original basename, or an object to customise.
 	 * @default false
 	 */
-	includeSource?: boolean | IncludeSourceOptions;
+	source?: boolean | { name?: string; enabled?: boolean };
 	/** Emit individual per-size files alongside the combined ICO.
 	 *
 	 * - `false` — only emit combined ICO (default)
@@ -37,15 +49,22 @@ export interface PluginOptions {
 	 * - `'both'` — emit both PNG and ICO per size
 	 * @default false
 	 */
-	emitSizes?: boolean | EmitSizesFormat;
+	sizes?: boolean | EmitSizesFormat;
 	/** Inject `<link>` tags for generated favicons into `index.html`.
 	 *
-	 * - `true` | `'minimal'` — ICO + SVG source (if SVG input + `includeSource`)
+	 * - `true` | `'minimal'` — ICO + SVG source (if SVG input + source emitted)
 	 * - `'full'` — all emitted files (ICO, SVG, per-size PNGs)
 	 * - `false` — no injection
 	 * @default false
 	 */
 	inject?: boolean | InjectMode;
+}
+
+/** Sharp image processing options. */
+export interface SharpOptions {
+	/** Apply maximum PNG compression (level 9 + adaptive filtering).
+	 * @default true */
+	optimize?: boolean;
 	/** Sharp resize options forwarded to `sharp().resize()`.
 	 *
 	 * `width` and `height` are always set by the per-size value and cannot be overridden.
@@ -66,13 +85,6 @@ export interface PluginOptions {
 	 * @example { compressionLevel: 4 }        // faster compression
 	 */
 	png?: Omit<PngOptions, 'force'>;
-	/** Control dev-server behavior.
-	 *
-	 * - `true` — enable with defaults (default)
-	 * - `false` — disable serve plugin entirely (build-only)
-	 * - Object — fine-grained control
-	 * @default true */
-	dev?: boolean | DevOptions;
 }
 
 /** Common ICO pixel dimensions with IDE autocompletion; any integer 1–256 is accepted. */
