@@ -2,7 +2,8 @@
 
 [![npm](https://img.shields.io/npm/v/vite-svg-to-ico)](https://www.npmjs.com/package/vite-svg-to-ico)
 
-Vite plugin that converts an image file into a multi-size `.ico` favicon at build time. Serves the generated ICO during development with HMR support.
+Vite plugin that converts an image file into a multi-size `.ico` favicon at build time.\
+Serves the generated ICO during development with HMR support.
 
 ## Install
 

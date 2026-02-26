@@ -11,20 +11,20 @@ describe('generateSizedPngs', () => {
 	it('returns correct number of PNGs for given sizes', async () => {
 		const pngs = await generateSizedPngs(FIXTURE, { sizes: [16, 32], optimize: false });
 		expect(pngs).toHaveLength(2);
-		expect(pngs[0].size).toBe(16);
-		expect(pngs[1].size).toBe(32);
+		expect(pngs[0]!.size).toBe(16);
+		expect(pngs[1]!.size).toBe(32);
 	});
 
 	it('accepts a Buffer input', async () => {
 		const buf = await readFile(FIXTURE);
 		const pngs = await generateSizedPngs(buf, { sizes: [16], optimize: false });
 		expect(pngs).toHaveLength(1);
-		expect(pngs[0].buffer).toBeInstanceOf(Buffer);
+		expect(pngs[0]!.buffer).toBeInstanceOf(Buffer);
 	});
 
 	it('produces valid PNG buffers (PNG magic bytes)', async () => {
 		const pngs = await generateSizedPngs(FIXTURE, { sizes: [32], optimize: false });
-		const magic = pngs[0].buffer.subarray(0, 4);
+		const magic = pngs[0]!.buffer.subarray(0, 4);
 		expect(magic[0]).toBe(0x89);
 		expect(magic[1]).toBe(0x50); // P
 		expect(magic[2]).toBe(0x4e); // N
@@ -35,12 +35,12 @@ describe('generateSizedPngs', () => {
 		const [unopt] = await generateSizedPngs(FIXTURE, { sizes: [48], optimize: false });
 		const [opt] = await generateSizedPngs(FIXTURE, { sizes: [48], optimize: true });
 		// Optimize changes compression settings, so buffers should differ
-		expect(opt.buffer.equals(unopt.buffer)).toBe(false);
+		expect(opt!.buffer.equals(unopt!.buffer)).toBe(false);
 	});
 
 	it('handles size 256', async () => {
 		const pngs = await generateSizedPngs(FIXTURE, { sizes: [256], optimize: false });
-		expect(pngs[0].size).toBe(256);
+		expect(pngs[0]!.size).toBe(256);
 	});
 });
 

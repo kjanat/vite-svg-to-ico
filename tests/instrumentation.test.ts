@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { Instrumentation } from '../src/instrumentation.ts';
 

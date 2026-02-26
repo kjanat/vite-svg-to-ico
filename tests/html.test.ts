@@ -13,9 +13,9 @@ describe('buildFaviconTags', () => {
 			mode: 'minimal',
 		});
 		expect(tags).toHaveLength(1);
-		expect(tags[0].attrs!['type']).toBe('image/x-icon');
-		expect(tags[0].attrs!['href']).toBe('/favicon.ico');
-		expect(tags[0].attrs!['sizes']).toBe('16x16 32x32');
+		expect(tags[0]!.attrs!['type']).toBe('image/x-icon');
+		expect(tags[0]!.attrs!['href']).toBe('/favicon.ico');
+		expect(tags[0]!.attrs!['sizes']).toBe('16x16 32x32');
 	});
 
 	it('minimal mode: includes SVG tag when SVG input + source emitted', () => {
@@ -28,8 +28,8 @@ describe('buildFaviconTags', () => {
 			mode: 'minimal',
 		});
 		expect(tags).toHaveLength(2);
-		expect(tags[1].attrs!['type']).toBe('image/svg+xml');
-		expect(tags[1].attrs!['href']).toBe('/icon.svg');
+		expect(tags[1]!.attrs!['type']).toBe('image/svg+xml');
+		expect(tags[1]!.attrs!['href']).toBe('/icon.svg');
 	});
 
 	it('minimal mode: no SVG tag when source not emitted', () => {
@@ -59,8 +59,8 @@ describe('buildFaviconTags', () => {
 		});
 		// 1 ICO + 2 per-size
 		expect(tags).toHaveLength(3);
-		expect(tags[1].attrs!['sizes']).toBe('16x16');
-		expect(tags[2].attrs!['sizes']).toBe('32x32');
+		expect(tags[1]!.attrs!['sizes']).toBe('16x16');
+		expect(tags[2]!.attrs!['sizes']).toBe('32x32');
 	});
 
 	it('full mode without sizedFiles: no per-size tags', () => {

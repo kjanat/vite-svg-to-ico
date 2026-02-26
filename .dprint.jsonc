@@ -1,7 +1,7 @@
 {
 	"lineWidth": 120,
 	"extends": "https://raw.githubusercontent.com/kjanat/kjanat/master/configs/dprint.remote.json",
-	"excludes": [".github/workflows/capture.yml", ".github/actions/capture/action.yml"],
+	"excludes": [".github/workflows/capture.yml", ".github/actions/capture/action.yml", "**/tests/fixtures"],
 	"exec": { "commands": [{ "command": "bunx sort-package-json --stdin", "fileNames": ["package.json"] }] },
 	"malva": { "useTabs": false },
 	"markup": {

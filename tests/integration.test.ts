@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { copyFileSync } from 'node:fs';
+import { copyFileSync, readFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { build, createServer, type InlineConfig, type ViteDevServer } from 'vite';
 
@@ -14,7 +13,7 @@ const ICON_SVG = join(FIXTURES, 'icon.svg');
 /** Build a vite project in-memory and return output files as a map of fileName → source. */
 async function runBuild(pluginOpts: Parameters<typeof svgToIco>[0], viteOverrides: Partial<InlineConfig> = {}) {
 	const outDir = join(FIXTURES, `dist-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
-	const result = await build({
+	await build({
 		root: FIXTURES,
 		logLevel: 'silent',
 		build: {
@@ -29,8 +28,6 @@ async function runBuild(pluginOpts: Parameters<typeof svgToIco>[0], viteOverride
 	// Collect files
 	const files = new Map<string, Buffer>();
 	const collectDir = (dir: string, prefix = '') => {
-		for (const entry of Bun.file(dir) ? [] : []) { /* noop */ }
-		// Use node fs to walk
 		const { readdirSync, statSync } = require('node:fs');
 		try {
 			for (const name of readdirSync(dir)) {
@@ -54,7 +51,6 @@ async function runBuild(pluginOpts: Parameters<typeof svgToIco>[0], viteOverride
 
 /** Fetch a path from a running Vite dev server. */
 async function devFetch(server: ViteDevServer, path: string): Promise<Response> {
-	const info = server.config.server;
 	const address = server.httpServer?.address();
 	if (!address || typeof address === 'string') throw new Error('Server not listening');
 	const url = `http://localhost:${address.port}${path}`;

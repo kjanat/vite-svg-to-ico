@@ -9,9 +9,9 @@ describe('svgToIco plugin factory', () => {
 	it('returns an array of 3 plugins', () => {
 		const plugins = svgToIco({ input: FIXTURE });
 		expect(plugins).toHaveLength(3);
-		expect(plugins[0].name).toBe('svg-to-ico:config');
-		expect(plugins[1].name).toBe('svg-to-ico:serve');
-		expect(plugins[2].name).toBe('svg-to-ico:build');
+		expect(plugins[0]!.name).toBe('svg-to-ico:config');
+		expect(plugins[1]!.name).toBe('svg-to-ico:serve');
+		expect(plugins[2]!.name).toBe('svg-to-ico:build');
 	});
 
 	it('uses default options', () => {
