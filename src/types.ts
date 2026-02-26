@@ -84,7 +84,7 @@ export const INJECT_MODES = ['minimal', 'full'] as const;
 /** Mode for HTML `<link>` tag injection. */
 export type InjectMode = (typeof INJECT_MODES)[number];
 
-/** Supported input image formats (sharp-compatible). */
+/** Supported input image formats (sharp-compatible file extensions including the leading dot). */
 export const SUPPORTED_EXTENSIONS = new Set([
 	'.svg',
 	'.svgz',
@@ -98,5 +98,5 @@ export const SUPPORTED_EXTENSIONS = new Set([
 	'.tif',
 ]);
 
-/** Extensions that identify SVG input. */
+/** Extensions that identify SVG input (`.svg` and `.svgz`). */
 export const SVG_EXTENSIONS = new Set(['.svg', '.svgz']);

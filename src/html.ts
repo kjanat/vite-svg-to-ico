@@ -27,6 +27,9 @@ export interface FaviconTagOptions {
  *
  * - **minimal**: ICO (always) + SVG source (if SVG input & source emitted).
  * - **full**: minimal + per-size PNG `<link>` tags.
+ *
+ * @param opts - Configuration describing which tags to generate.
+ * @returns Array of Vite HTML tag descriptors to inject into `<head>`.
  */
 export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 	const tags: HtmlTagDescriptor[] = [];

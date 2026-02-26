@@ -87,6 +87,8 @@ const ENTRY_SIZE = 16;
  * Uses the modern PNG-in-ICO format (supported since Windows Vista).
  * Each PNG is stored verbatim — no BMP conversion or pixel manipulation.
  *
+ * @param pngs - Array of pre-rendered PNG buffers with their target sizes.
+ * @returns ICO file contents as a {@link Buffer}.
  * @see {@link https://en.wikipedia.org/wiki/ICO_(file_format) "ICO (file format)"}
  */
 export function packIco(pngs: SizedPng[]): Buffer {
