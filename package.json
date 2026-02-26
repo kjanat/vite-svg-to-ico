@@ -3,10 +3,11 @@
 	"version": "0.1.0",
 	"description": "A Vite plugin that converts SVG files to ICO format during the build process.",
 	"keywords": [
+		"vite-plugin",
 		"vite",
-		"plugin",
 		"svg",
 		"ico",
+		"favicon",
 		"converter"
 	],
 	"repository": {
@@ -30,9 +31,6 @@
 		"fmt": "dprint fmt",
 		"typecheck": "tsgo --noEmit"
 	},
-	"overrides": {
-		"vite": "npm:rolldown-vite@latest"
-	},
 	"dependencies": {
 		"sharp": "^0.34.5"
 	},
@@ -45,7 +43,7 @@
 		"unplugin-unused": "^0.5.7"
 	},
 	"peerDependencies": {
-		"vite": "^7.3.1"
+		"vite": "^6.0.0 || ^7.0.0"
 	},
 	"packageManager": "bun@1.3.9",
 	"publishConfig": {

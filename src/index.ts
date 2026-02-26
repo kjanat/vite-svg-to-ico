@@ -19,6 +19,9 @@ export type { IconSize, IncludeSourceOptions, PluginOptions };
  *
  * @example
  * ```ts
+ * // Basic usage
+ * // vite.config.ts
+ * import { defineConfig } from 'vite';
  * import svgToIco from 'vite-svg-to-ico';
  *
  * export default defineConfig({
@@ -26,6 +29,43 @@ export type { IconSize, IncludeSourceOptions, PluginOptions };
  *     svgToIco({ input: 'src/icon.svg' }),
  *   ],
  * });
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Custom sizes and output filename
+ * svgToIco({
+ *   input: 'src/logo.svg',
+ *   output: 'icon.ico',
+ *   sizes: [16, 24, 32, 48, 64, 128, 256],
+ * })
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Skip PNG optimization for faster builds
+ * svgToIco({
+ *   input: 'src/icon.svg',
+ *   optimize: false,
+ * })
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Emit the source SVG alongside the ICO
+ * svgToIco({
+ *   input: 'src/icon.svg',
+ *   includeSource: true,
+ * })
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Emit the source SVG with a custom filename
+ * svgToIco({
+ *   input: 'src/icon.svg',
+ *   includeSource: { name: 'logo.svg' },
+ * })
  * ```
  */
 export default function svgToIco(opts: PluginOptions): Plugin[] {
@@ -42,32 +82,31 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 
 	const sizes = Array.isArray(rawSizes) ? rawSizes : [rawSizes];
 
-	const sourceOpts: { enabled: boolean; name: string } =
-		typeof rawIncludeSource === 'object'
-			? { enabled: rawIncludeSource.enabled ?? true, name: rawIncludeSource.name ?? basename(input) }
-			: { enabled: rawIncludeSource, name: basename(input) };
+	const sourceOpts: { enabled: boolean; name: string } = typeof rawIncludeSource === 'object'
+		? { enabled: rawIncludeSource.enabled ?? true, name: rawIncludeSource.name ?? basename(input) }
+		: { enabled: rawIncludeSource, name: basename(input) };
 
 	return [
 		{
-			name: 'vite:svg-to-ico:config',
+			name: 'svg-to-ico:config',
 			enforce: 'post',
 
 			configResolved(config) {
 				logger = config.logger;
 				if (!input) {
-					throw new Error('[@vite:svg-to-ico] `input` option is required');
+					throw new Error('[svg-to-ico] `input` option is required');
 				}
 				const invalid = sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
 				if (invalid.length > 0) {
 					throw new Error(
-						`[@vite:svg-to-ico] Invalid sizes: ${invalid.join(', ')}. Must be integers 1–256.`,
+						`[svg-to-ico] Invalid sizes: ${invalid.join(', ')}. Must be integers 1–256.`,
 					);
 				}
 			},
 		},
 
 		{
-			name: 'vite:svg-to-ico:serve',
+			name: 'svg-to-ico:serve',
 			apply: 'serve',
 			enforce: 'post',
 
@@ -98,7 +137,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			},
 
 			async buildStart() {
-				using I = new Instrumentation();
+				const I = new Instrumentation();
 				I.start('Generate ICO (serve)');
 				generatedIco = await generateIco(input, sizes, optimize);
 				I.end('Generate ICO (serve)');
@@ -106,7 +145,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 
 			async handleHotUpdate({ file, server }) {
 				if (file === input) {
-					using I = new Instrumentation();
+					const I = new Instrumentation();
 					I.start('Regenerate ICO (HMR)');
 					generatedIco = await generateIco(input, sizes, optimize);
 					I.end('Regenerate ICO (HMR)');
@@ -117,12 +156,12 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		},
 
 		{
-			name: 'vite:svg-to-ico:build',
+			name: 'svg-to-ico:build',
 			apply: 'build',
 			enforce: 'post',
 
 			async buildStart() {
-				using I = new Instrumentation();
+				const I = new Instrumentation();
 				I.start('Generate ICO (build)');
 
 				try {
@@ -149,7 +188,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 						logger.info(`Generated ${output}`);
 					}
 				} catch (error) {
-					this.error(`[@vite:svg-to-ico] Failed to generate ICO: ${error}`);
+					this.error(`[svg-to-ico] Failed to generate ICO: ${error}`);
 				}
 			},
 		},

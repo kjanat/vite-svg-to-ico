@@ -3,19 +3,18 @@ const DEBUG = process.env.DEBUG === 'vite-svg-to-ico';
 export { DEBUG };
 
 /**
- * Debug-only timing instrumentation. Uses explicit resource management
- * (`using`) to auto-clear timers when the block scope exits.
+ * Debug-only timing instrumentation.
  *
  * Enable with `DEBUG=vite-svg-to-ico`.
  */
-export class Instrumentation implements Disposable {
+export class Instrumentation {
 	private times = new Map<string, number>();
 
 	/** Begin a labeled timer; no-op when {@link DEBUG} is `false`. */
 	start(label: string) {
 		if (!DEBUG) return;
 		this.times.set(label, performance.now());
-		console.log(`[@vite:svg-to-ico] ${label}...`);
+		console.log(`[svg-to-ico] ${label}...`);
 	}
 
 	/** Log elapsed time for a previously started label; no-op when {@link DEBUG} is `false`. */
@@ -24,11 +23,7 @@ export class Instrumentation implements Disposable {
 		const start = this.times.get(label);
 		if (start) {
 			const duration = (performance.now() - start).toFixed(2);
-			console.log(`[@vite:svg-to-ico] ${label} (${duration}ms)`);
+			console.log(`[svg-to-ico] ${label} (${duration}ms)`);
 		}
-	}
-
-	[Symbol.dispose](): void {
-		this.times.clear();
 	}
 }
