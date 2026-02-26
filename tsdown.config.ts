@@ -4,8 +4,13 @@ export default defineConfig({
 	entry: 'src/index.ts',
 	dts: true,
 	exports: {
-		devExports: true,
-		enabled: true,
+		customExports(exports) {
+			const entry = exports['.'];
+			if (typeof entry === 'string') {
+				exports['.'] = { bun: './src/index.ts', default: entry };
+			}
+			return exports;
+		},
 	},
 	clean: true,
 	target: 'esnext',
@@ -13,4 +18,8 @@ export default defineConfig({
 	onSuccess: 'bun fmt package.json',
 	unbundle: true,
 	minify: 'dce-only',
+	publint: true,
+	attw: {
+		ignoreRules: ['cjs-resolves-to-esm', 'no-resolution'],
+	},
 });
