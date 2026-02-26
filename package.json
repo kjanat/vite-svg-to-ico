@@ -1,0 +1,57 @@
+{
+	"name": "vite-svg-to-ico",
+	"version": "0.1.0",
+	"description": "A Vite plugin that converts SVG files to ICO format during the build process.",
+	"keywords": [
+		"vite",
+		"plugin",
+		"svg",
+		"ico",
+		"converter"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/kjanat/vite-svg-to-ico"
+	},
+	"license": "MIT",
+	"author": "kjanat",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"bd": "tsdown",
+		"build": "tsdown",
+		"dev": "tsdown --watch",
+		"fmt": "dprint fmt",
+		"typecheck": "tsgo --noEmit"
+	},
+	"overrides": {
+		"vite": "npm:rolldown-vite@latest"
+	},
+	"dependencies": {
+		"sharp": "^0.34.5"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@typescript/native-preview": "^7.0.0-dev.20260225.1",
+		"dprint": "^0.52.0",
+		"tsdown": "^0.20.3",
+		"typescript": "^5.9.3",
+		"unplugin-unused": "^0.5.7"
+	},
+	"peerDependencies": {
+		"vite": "^7.3.1"
+	},
+	"packageManager": "bun@1.3.9",
+	"publishConfig": {
+		"exports": {
+			".": "./dist/index.mjs",
+			"./package.json": "./package.json"
+		}
+	}
+}
