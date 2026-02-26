@@ -141,27 +141,27 @@ svgToIco({ input: 'src/icon.svg', dev: { hmr: false } });
 
 ## Options
 
-| Option  | Type                          | Default          | Description                                          |
-| ------- | ----------------------------- | ---------------- | ---------------------------------------------------- |
-| `input` | `string`                      | **(required)**   | Path to source image (SVG, PNG, JPEG, WebP, etc.).   |
-| `output` | `string`                     | `'favicon.ico'`  | Output filename for the generated ICO.               |
-| `sizes` | `number \| number[]`          | `[16, 32, 48]`  | Pixel dimensions to rasterize (1–256).               |
-| `emit`  | `EmitOptions`                 | `{}`             | Control emitted files and HTML injection.            |
-| `sharp` | `SharpOptions`                | `{}`             | Sharp image processing options.                      |
-| `dev`   | `boolean \| DevOptions`       | `true`           | Control dev-server behavior.                         |
+| Option   | Type                    | Default         | Description                                        |
+| -------- | ----------------------- | --------------- | -------------------------------------------------- |
+| `input`  | `string`                | **(required)**  | Path to source image (SVG, PNG, JPEG, WebP, etc.). |
+| `output` | `string`                | `'favicon.ico'` | Output filename for the generated ICO.             |
+| `sizes`  | `number \| number[]`    | `[16, 32, 48]`  | Pixel dimensions to rasterize (1–256).             |
+| `emit`   | `EmitOptions`           | `{}`            | Control emitted files and HTML injection.          |
+| `sharp`  | `SharpOptions`          | `{}`            | Sharp image processing options.                    |
+| `dev`    | `boolean \| DevOptions` | `true`          | Control dev-server behavior.                       |
 
 ### `emit`
 
-| Option   | Type                                   | Default  | Description                                            |
-| -------- | -------------------------------------- | -------- | ------------------------------------------------------ |
-| `source` | `boolean \| { name?, enabled? }`       | `false`  | Emit the source file alongside the ICO.                |
-| `sizes`  | `boolean \| 'png' \| 'ico' \| 'both'` | `false`  | Emit individual per-size files.                        |
-| `inject` | `boolean \| 'minimal' \| 'full'`       | `false`  | Inject `<link>` tags into `index.html`.                |
+| Option   | Type                                  | Default | Description                             |
+| -------- | ------------------------------------- | ------- | --------------------------------------- |
+| `source` | `boolean \| { name?, enabled? }`      | `false` | Emit the source file alongside the ICO. |
+| `sizes`  | `boolean \| 'png' \| 'ico' \| 'both'` | `false` | Emit individual per-size files.         |
+| `inject` | `boolean \| 'minimal' \| 'full'`      | `false` | Inject `<link>` tags into `index.html`. |
 
 #### `emit.sizes` details
 
-| Value    | Emitted per-size files                         |
-| -------- | ---------------------------------------------- |
+| Value    | Emitted per-size files                        |
+| -------- | --------------------------------------------- |
 | `true`   | `favicon-{W}x{H}.png`                         |
 | `'png'`  | `favicon-{W}x{H}.png` (same as `true`)        |
 | `'ico'`  | `favicon-{W}x{H}.ico`                         |
@@ -169,27 +169,27 @@ svgToIco({ input: 'src/icon.svg', dev: { hmr: false } });
 
 #### `emit.inject` details
 
-| Value       | Tags injected                                      |
-| ----------- | -------------------------------------------------- |
-| `true`      | ICO + SVG source (if SVG input + `emit.source`)    |
-| `'minimal'` | Same as `true`                                     |
+| Value       | Tags injected                                        |
+| ----------- | ---------------------------------------------------- |
+| `true`      | ICO + SVG source (if SVG input + `emit.source`)      |
+| `'minimal'` | Same as `true`                                       |
 | `'full'`    | Minimal + per-size file tags (requires `emit.sizes`) |
 
 ### `sharp`
 
-| Option     | Type                  | Default                                       | Description                                              |
-| ---------- | --------------------- | --------------------------------------------- | -------------------------------------------------------- |
-| `optimize` | `boolean`             | `true`                                        | Max PNG compression (level 9 + adaptive filtering).      |
-| `resize`   | `sharp.ResizeOptions` | `{ fit: 'contain', background: transparent }` | Sharp resize options (width/height set per size).        |
-| `png`      | `sharp.PngOptions`    | Derived from `optimize`                       | Sharp PNG options. Explicit values override `optimize`.  |
+| Option     | Type                  | Default                                       | Description                                             |
+| ---------- | --------------------- | --------------------------------------------- | ------------------------------------------------------- |
+| `optimize` | `boolean`             | `true`                                        | Max PNG compression (level 9 + adaptive filtering).     |
+| `resize`   | `sharp.ResizeOptions` | `{ fit: 'contain', background: transparent }` | Sharp resize options (width/height set per size).       |
+| `png`      | `sharp.PngOptions`    | Derived from `optimize`                       | Sharp PNG options. Explicit values override `optimize`. |
 
 ### `dev`
 
-| Option      | Type                        | Default       | Description                                          |
-| ----------- | --------------------------- | ------------- | ---------------------------------------------------- |
-| `enabled`   | `boolean`                   | `true`        | Enable dev-server features entirely.                 |
-| `injection` | `'transform' \| 'shim'`    | `'transform'` | How favicon tags are added during dev.               |
-| `hmr`       | `boolean`                   | `true`        | Auto-refresh favicon when source file changes.       |
+| Option      | Type                    | Default       | Description                                    |
+| ----------- | ----------------------- | ------------- | ---------------------------------------------- |
+| `enabled`   | `boolean`               | `true`        | Enable dev-server features entirely.           |
+| `injection` | `'transform' \| 'shim'` | `'transform'` | How favicon tags are added during dev.         |
+| `hmr`       | `boolean`               | `true`        | Auto-refresh favicon when source file changes. |
 
 ## How it works
 
