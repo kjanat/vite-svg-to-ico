@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { SUPPORTED_EXTENSIONS, SVG_EXTENSIONS, EMIT_SIZES_FORMATS, INJECT_MODES } from '../src/types.ts';
+import { EMIT_SIZES_FORMATS, INJECT_MODES, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from '../src/types.ts';
 
 describe('SUPPORTED_EXTENSIONS', () => {
 	it('contains all expected image formats', () => {

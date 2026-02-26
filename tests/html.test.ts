@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { buildFaviconTags, INJECT_ICON_LINK_RE } from '../src/html.ts';
+import { buildFaviconTags, INJECT_ICON_LINK_RE } from '$/html.ts';
 
 describe('buildFaviconTags', () => {
 	it('minimal mode: returns ICO tag only for non-SVG input', () => {

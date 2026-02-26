@@ -3,7 +3,7 @@ import { copyFileSync, readFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { build, createServer, type InlineConfig, type ViteDevServer } from 'vite';
 
-import svgToIco from '../src/index.ts';
+import svgToIco from '$/index.ts';
 
 const FIXTURES = resolve(import.meta.dirname, 'fixtures/basic-project');
 const ICON_SVG = join(FIXTURES, 'icon.svg');

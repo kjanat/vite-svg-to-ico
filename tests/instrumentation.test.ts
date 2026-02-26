@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { Instrumentation } from '../src/instrumentation.ts';
+import { Instrumentation } from '$/instrumentation.ts';
 
 describe('Instrumentation', () => {
 	// Note: DEBUG is evaluated at module load time from process.env.DEBUG
