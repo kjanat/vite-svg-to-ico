@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-02-26
+
 ### Added
 
+- GitHub Actions workflow for automated npm publishing on version tags.
+- npm provenance for supply-chain transparency.
+- `publishConfig` with access, provenance, registry, and tag defaults.
+- `tar` script for CI tarball packing.
 - This changelog.
+
+### Changed
+
+- Switch tsdown to unbundle mode for preserved module structure.
+- DCE-only minification for better tree-shaking by consumers (~2 KB smaller).
+- Silence `prepack`/`postpack` script output.
 
 ## [0.2.0] - 2026-02-26
 
@@ -48,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite 6 and 7 peer dependency compatibility.
 - Full TypeScript type exports (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kjanat/vite-svg-to-ico/releases/tag/v0.1.0
