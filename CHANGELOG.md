@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-03-01
+
+### Fixed
+
+- Injected favicon `<link>` tags now respect Vite's `base` config. Previously, hrefs were always absolute (`/favicon.ico`), breaking deployments on subdirectory paths like GitHub Pages (`base: './'` → `./favicon.ico`).
+
 ## [2.0.0] - 2026-02-26
 
 ### Added
@@ -102,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite 6 and 7 peer dependency compatibility.
 - Full TypeScript type exports (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
+[2.0.1]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.1.0...v0.2.0
