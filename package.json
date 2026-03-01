@@ -1,6 +1,6 @@
 {
 	"name": "vite-svg-to-ico",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"description": "A Vite plugin that converts SVG files to ICO format during the build process.",
 	"keywords": [
 		"vite-plugin",
