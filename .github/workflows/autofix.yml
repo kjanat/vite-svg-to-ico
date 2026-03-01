@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://www.schemastore.org/github-workflow.json
+---
+name: autofix.ci
+run-name: "autofix.ci \"${{ github.event.pull_request.title || github.event.head_commit.message || github.event_name }}\" by @${{ github.actor }}"
+on:
+  push: { branches: ["master"] }
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+permissions: { contents: write }
+jobs:
+  autofix:
+    name: Format and autofix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun i --frozen-lockfile
+      - name: Format sources
+        run: bun fmt --allow-no-files --diff --excludes ".github"
+      - uses: autofix-ci/action@v1
