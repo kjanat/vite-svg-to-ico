@@ -20,6 +20,8 @@ export interface FaviconTagOptions {
 	inputFormat: string;
 	mode: InjectMode;
 	sizedFiles?: SizedFileInfo[];
+	/** Vite resolved `base` path (e.g. `'/'`, `'./'`, `'/repo/'`). Defaults to `'/'`. */
+	base?: string;
 }
 
 /**
@@ -33,6 +35,7 @@ export interface FaviconTagOptions {
  */
 export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 	const tags: HtmlTagDescriptor[] = [];
+	const base = opts.base ?? '/';
 
 	// 1. ICO — always
 	tags.push({
@@ -40,7 +43,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 		attrs: {
 			rel: 'icon',
 			type: 'image/x-icon',
-			href: `/${opts.output}`,
+			href: `${base}${opts.output}`,
 			sizes: opts.sizes.map((s) => `${s}x${s}`).join(' '),
 		},
 		injectTo: 'head',
@@ -53,7 +56,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 			attrs: {
 				rel: 'icon',
 				type: 'image/svg+xml',
-				href: `/${opts.sourceName}`,
+				href: `${base}${opts.sourceName}`,
 				sizes: 'any',
 			},
 			injectTo: 'head',
@@ -69,7 +72,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 					rel: 'icon',
 					type: `image/${file.format}`,
 					sizes: `${file.size}x${file.size}`,
-					href: `/${file.name}`,
+					href: `${base}${file.name}`,
 				},
 				injectTo: 'head',
 			});

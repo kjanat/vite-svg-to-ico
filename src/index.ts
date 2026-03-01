@@ -132,6 +132,9 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 	/** Resolved absolute path to the input file, set in `configResolved`. */
 	let resolvedInput = input;
 
+	/** Resolved Vite `base` path, set in `configResolved`. */
+	let resolvedBase = '/';
+
 	// --- emitSizes normalization ---
 	const emitSizesFormat: EmitSizesFormat | false = rawEmitSizes === true
 		? 'png'
@@ -193,7 +196,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 	].join('\n');
 
 	/** Build favicon tags for HTML injection. */
-	function faviconTags(): HtmlTagDescriptor[] {
+	function faviconTags(options?: { base?: string }): HtmlTagDescriptor[] {
 		if (!injectMode) return [];
 		return buildFaviconTags({
 			output,
@@ -203,6 +206,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			inputFormat,
 			mode: injectMode,
 			sizedFiles: buildSizedFileInfos(),
+			base: options?.base,
 		});
 	}
 
@@ -299,6 +303,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 
 				// Resolve input to absolute path for HMR comparison
 				resolvedInput = resolve(config.root, input);
+				resolvedBase = config.base;
 			},
 		},
 
@@ -525,7 +530,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 				const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
 				return {
 					html: cleaned,
-					tags: faviconTags(),
+					tags: faviconTags({ base: resolvedBase }),
 				};
 			},
 		},
