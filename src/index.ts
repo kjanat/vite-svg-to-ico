@@ -7,10 +7,31 @@ import type { SizedFileInfo } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
 import type { GenerateOptions, SizedPng } from './ico.ts';
 import { DEBUG, Instrumentation } from './instrumentation.ts';
-import type { DevInjection, DevOptions, EmitOptions, EmitSizesFormat, IconSize, IncludeSourceOptions, InjectMode, PluginOptions, SharpOptions } from './types.ts';
+import type {
+	DevInjection,
+	DevOptions,
+	EmitOptions,
+	EmitSizesFormat,
+	IconSize,
+	IncludeSourceOptions,
+	InjectMode,
+	PluginOptions,
+	SharpOptions,
+} from './types.ts';
 import { DEV_INJECTIONS, EMIT_SIZES_FORMATS, INJECT_MODES, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from './types.ts';
 
-export type { DevInjection, DevOptions, EmitOptions, EmitSizesFormat, GenerateOptions, IconSize, IncludeSourceOptions, InjectMode, PluginOptions, SharpOptions };
+export type {
+	DevInjection,
+	DevOptions,
+	EmitOptions,
+	EmitSizesFormat,
+	GenerateOptions,
+	IconSize,
+	IncludeSourceOptions,
+	InjectMode,
+	PluginOptions,
+	SharpOptions,
+};
 
 /**
  * Vite plugin that converts an image source into a multi-size `.ico` favicon.
@@ -292,8 +313,10 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					);
 				}
 
-				if (typeof rawDev === 'object' && rawDev.injection !== undefined
-					&& !(DEV_INJECTIONS as readonly string[]).includes(rawDev.injection)) {
+				if (
+					typeof rawDev === 'object' && rawDev.injection !== undefined
+					&& !(DEV_INJECTIONS as readonly string[]).includes(rawDev.injection)
+				) {
 					throw new Error(
 						`[svg-to-ico] Invalid dev.injection value: "${rawDev.injection}". Must be ${
 							DEV_INJECTIONS.map((m) => `'${m}'`).join(', ')
@@ -307,164 +330,176 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			},
 		},
 
-		...(devOpts.enabled ? [{
-			name: 'svg-to-ico:serve',
-			apply: 'serve' as const,
-			enforce: 'post' as const,
+		...(devOpts.enabled
+			? [
+				{
+					name: 'svg-to-ico:serve',
+					apply: 'serve' as const,
+					enforce: 'post' as const,
 
-			configureServer(server: import('vite').ViteDevServer) {
-				// Main ICO endpoint
-				server.middlewares.use(`/${output}`, async (_req: any, res: any, next: any) => {
-					try {
-						if (!generatedIco) {
-							const pngs = await generateSizedPngs(resolvedInput, genOpts);
-							generatedIco = packIco(pngs);
-							if (emitSizesFormat) generatedPngs = pngs;
-						}
-						res.setHeader('Content-Type', 'image/x-icon');
-						res.setHeader('Cache-Control', 'no-cache');
-						res.end(generatedIco);
-					} catch (e: any) {
-						next(e);
-					}
-				});
-
-				// Source file endpoint
-				if (sourceOpts.enabled) {
-					server.middlewares.use(`/${sourceOpts.name}`, async (_req: any, res: any, next: any) => {
-						try {
-							const buffer = await readFile(resolvedInput);
-							res.setHeader('Content-Type', sourceMimeType);
-							res.end(buffer);
-						} catch (e: any) {
-							next(e);
-						}
-					});
-				}
-
-				// Per-size file endpoints
-				if (emitSizesFormat) {
-					for (const size of sizes) {
-						if (emitPng) {
-							server.middlewares.use(`/${outputStem}-${size}x${size}.png`, async (_req: any, res: any, next: any) => {
-								try {
-									if (!generatedPngs) {
-										generatedPngs = await generateSizedPngs(resolvedInput, genOpts);
-									}
-									const png = generatedPngs.find((p) => p.size === size);
-									if (!png) {
-										next();
-										return;
-									}
-									res.setHeader('Content-Type', 'image/png');
-									res.setHeader('Cache-Control', 'no-cache');
-									res.end(png.buffer);
-								} catch (e: any) {
-									next(e);
+					configureServer(server: import('vite').ViteDevServer) {
+						// Main ICO endpoint
+						server.middlewares.use(`/${output}`, async (_req: any, res: any, next: any) => {
+							try {
+								if (!generatedIco) {
+									const pngs = await generateSizedPngs(resolvedInput, genOpts);
+									generatedIco = packIco(pngs);
+									if (emitSizesFormat) generatedPngs = pngs;
 								}
-							});
-						}
-						if (emitIco) {
-							server.middlewares.use(`/${outputStem}-${size}x${size}.ico`, async (_req: any, res: any, next: any) => {
-								try {
-									if (!generatedPngs) {
-										generatedPngs = await generateSizedPngs(resolvedInput, genOpts);
-									}
-									const png = generatedPngs.find((p) => p.size === size);
-									if (!png) {
-										next();
-										return;
-									}
-									res.setHeader('Content-Type', 'image/x-icon');
-									res.setHeader('Cache-Control', 'no-cache');
-									res.end(packIco([png]));
-								} catch (e: any) {
-									next(e);
-								}
-							});
-						}
-					}
-				}
-			},
-
-			transformIndexHtml(html: string) {
-				let processed = html;
-				const tags: HtmlTagDescriptor[] = [];
-
-				if (devOpts.injection === 'shim') {
-					// Shim mode: inject a script that dynamically manages link tags
-					tags.push({
-						tag: 'script',
-						attrs: { type: 'module' },
-						children: buildShimScript(),
-						injectTo: 'head',
-					});
-				} else {
-					// Transform mode (default): rewrite HTML directly
-					if (injectMode) {
-						// Strip existing icon-only links (preserves apple-touch-icon)
-						processed = processed.replace(INJECT_ICON_LINK_RE, '');
-						// Build and cache-bust injected tags
-						for (const tag of faviconTags()) {
-							if (tag.attrs && typeof tag.attrs['href'] === 'string') {
-								tag.attrs['href'] = cacheBust(tag.attrs['href']);
+								res.setHeader('Content-Type', 'image/x-icon');
+								res.setHeader('Cache-Control', 'no-cache');
+								res.end(generatedIco);
+							} catch (e: any) {
+								next(e);
 							}
-							tags.push(tag);
+						});
+
+						// Source file endpoint
+						if (sourceOpts.enabled) {
+							server.middlewares.use(`/${sourceOpts.name}`, async (_req: any, res: any, next: any) => {
+								try {
+									const buffer = await readFile(resolvedInput);
+									res.setHeader('Content-Type', sourceMimeType);
+									res.end(buffer);
+								} catch (e: any) {
+									next(e);
+								}
+							});
 						}
-					} else {
-						// Cache-bust existing icon links
-						processed = processed.replace(ICON_LINK_RE, (_match, before, href, after) => {
-							return `${before}${cacheBust(href)}${after}`;
-						});
-					}
 
-					// HMR client (only in transform mode; shim handles its own HMR)
-					if (devOpts.hmr) {
-						tags.push({
-							tag: 'script',
-							attrs: { type: 'module' },
-							children: hmrClientCode,
-							injectTo: 'head',
-						});
-					}
-				}
+						// Per-size file endpoints
+						if (emitSizesFormat) {
+							for (const size of sizes) {
+								if (emitPng) {
+									server.middlewares.use(
+										`/${outputStem}-${size}x${size}.png`,
+										async (_req: any, res: any, next: any) => {
+											try {
+												if (!generatedPngs) {
+													generatedPngs = await generateSizedPngs(resolvedInput, genOpts);
+												}
+												const png = generatedPngs.find((p) => p.size === size);
+												if (!png) {
+													next();
+													return;
+												}
+												res.setHeader('Content-Type', 'image/png');
+												res.setHeader('Cache-Control', 'no-cache');
+												res.end(png.buffer);
+											} catch (e: any) {
+												next(e);
+											}
+										},
+									);
+								}
+								if (emitIco) {
+									server.middlewares.use(
+										`/${outputStem}-${size}x${size}.ico`,
+										async (_req: any, res: any, next: any) => {
+											try {
+												if (!generatedPngs) {
+													generatedPngs = await generateSizedPngs(resolvedInput, genOpts);
+												}
+												const png = generatedPngs.find((p) => p.size === size);
+												if (!png) {
+													next();
+													return;
+												}
+												res.setHeader('Content-Type', 'image/x-icon');
+												res.setHeader('Cache-Control', 'no-cache');
+												res.end(packIco([png]));
+											} catch (e: any) {
+												next(e);
+											}
+										},
+									);
+								}
+							}
+						}
+					},
 
-				return { html: processed, tags };
-			},
+					transformIndexHtml(html: string) {
+						let processed = html;
+						const tags: HtmlTagDescriptor[] = [];
 
-			async buildStart() {
-				const I = new Instrumentation();
-				I.start('Generate ICO (serve)');
-				const pngs = await generateSizedPngs(resolvedInput, genOpts);
-				generatedIco = packIco(pngs);
-				if (emitSizesFormat) {
-					generatedPngs = pngs;
-				}
-				I.end('Generate ICO (serve)');
-			},
+						if (devOpts.injection === 'shim') {
+							// Shim mode: inject a script that dynamically manages link tags
+							tags.push({
+								tag: 'script',
+								attrs: { type: 'module' },
+								children: buildShimScript(),
+								injectTo: 'head',
+							});
+						} else {
+							// Transform mode (default): rewrite HTML directly
+							if (injectMode) {
+								// Strip existing icon-only links (preserves apple-touch-icon)
+								processed = processed.replace(INJECT_ICON_LINK_RE, '');
+								// Build and cache-bust injected tags
+								for (const tag of faviconTags()) {
+									if (tag.attrs && typeof tag.attrs['href'] === 'string') {
+										tag.attrs['href'] = cacheBust(tag.attrs['href']);
+									}
+									tags.push(tag);
+								}
+							} else {
+								// Cache-bust existing icon links
+								processed = processed.replace(ICON_LINK_RE, (_match, before, href, after) => {
+									return `${before}${cacheBust(href)}${after}`;
+								});
+							}
 
-			...(devOpts.hmr ? {
-				async handleHotUpdate({ file, server }: { file: string; server: import('vite').ViteDevServer }) {
-					if (file === resolvedInput) {
+							// HMR client (only in transform mode; shim handles its own HMR)
+							if (devOpts.hmr) {
+								tags.push({
+									tag: 'script',
+									attrs: { type: 'module' },
+									children: hmrClientCode,
+									injectTo: 'head',
+								});
+							}
+						}
+
+						return { html: processed, tags };
+					},
+
+					async buildStart() {
 						const I = new Instrumentation();
-						I.start('Regenerate ICO (HMR)');
+						I.start('Generate ICO (serve)');
 						const pngs = await generateSizedPngs(resolvedInput, genOpts);
 						generatedIco = packIco(pngs);
 						if (emitSizesFormat) {
 							generatedPngs = pngs;
 						}
-						I.end('Regenerate ICO (HMR)');
+						I.end('Generate ICO (serve)');
+					},
 
-						cacheId = Date.now().toString(36);
-						server.hot.send({
-							type: 'custom',
-							event: 'svg-to-ico:update',
-							data: { cacheId },
-						});
-					}
-				},
-			} : {}),
-		} satisfies Plugin] : []),
+					...(devOpts.hmr
+						? {
+							async handleHotUpdate({ file, server }: { file: string; server: import('vite').ViteDevServer }) {
+								if (file === resolvedInput) {
+									const I = new Instrumentation();
+									I.start('Regenerate ICO (HMR)');
+									const pngs = await generateSizedPngs(resolvedInput, genOpts);
+									generatedIco = packIco(pngs);
+									if (emitSizesFormat) {
+										generatedPngs = pngs;
+									}
+									I.end('Regenerate ICO (HMR)');
+
+									cacheId = Date.now().toString(36);
+									server.hot.send({
+										type: 'custom',
+										event: 'svg-to-ico:update',
+										data: { cacheId },
+									});
+								}
+							},
+						}
+						: {}),
+				} satisfies Plugin,
+			]
+			: []),
 
 		{
 			name: 'svg-to-ico:build',
