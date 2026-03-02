@@ -35,7 +35,6 @@ jobs:
 
       - id: tarball
         run: |
-          bun bd
           TARBALL="$(bun run --silent tar)"
           echo "tar=${TARBALL}" | tee -a "$GITHUB_OUTPUT"
 
