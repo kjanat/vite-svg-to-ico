@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `autofix.ci` workflow for automatic dprint formatting on push and PRs
 
+### Changed
+
+- Publish workflow: `--frozen-lockfile`, strict tag pattern, prerelease `next`/`latest` tag via `actions/github-script`, `bun i -g npm`, rely on `prepublishOnly` for test+typecheck gate
+
 ## [2.0.1] - 2026-03-01
 
 ### Fixed
