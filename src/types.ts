@@ -9,19 +9,40 @@ export interface PluginOptions {
 	 * Supports SVG, PNG, JPEG, WebP, AVIF, GIF, and TIFF via sharp.
 	 */
 	input: string;
-	/** Output filename for the generated `.ico` asset.
+	/** Default ICO filename, used as a fallback when an {@link IcoSpec} omits `filename`.
+	 *
+	 * @deprecated In v3, prefer specifying `filename` on an {@link IcoSpec}
+	 *   inside the `emit` array. Retained for the v2 shim and as a fallback.
 	 * @default 'favicon.ico'
 	 */
 	output?: string;
-	/** Pixel dimensions to rasterize (each value produces a square PNG layer).
+	/** Default pixel dimensions for the combined ICO when an {@link IcoSpec} omits `sizes`.
 	 *
 	 * A single value is wrapped into an array automatically.
 	 * Must be integers in the range 1–256 per the ICO spec.
 	 * @default [16, 32, 48]
 	 */
 	sizes?: IconSize | IconSize[];
-	/** Control what gets emitted and how HTML is modified. */
-	emit?: EmitOptions;
+	/** What this plugin emits and how it injects tags.
+	 *
+	 * **v3 shape** — an array of per-format specs (recommended):
+	 *
+	 * ```ts
+	 * emit: [
+	 *   { format: 'ico', sizes: [16, 32, 48] },
+	 *   { format: 'png', sizes: [192, 512], inject: { sizes: [192] } },
+	 *   { format: 'svg', filename: 'logo.svg', inject: true },
+	 * ]
+	 * ```
+	 *
+	 * **v2 shape** — `{ source, sizes, inject }` object. Still accepted; the
+	 *   plugin translates it to v3 internally and logs a one-time deprecation
+	 *   warning. Will be removed in v4.
+	 *
+	 * Omitted entirely → defaults to `[{ format: 'ico' }]` (one combined
+	 *   favicon.ico using top-level `sizes`).
+	 */
+	emit?: EmitSpec[] | LegacyEmitOptions;
 	/** Sharp image processing options. */
 	sharp?: SharpOptions;
 	/** Control dev-server behavior.
@@ -33,8 +54,54 @@ export interface PluginOptions {
 	dev?: boolean | DevOptions;
 }
 
-/** Options controlling what additional files are emitted and how HTML is modified. */
-export interface EmitOptions {
+/** Discriminated union of v3 emit specs. Each entry produces one output. */
+export type EmitSpec = IcoSpec | PngSpec | SvgSpec;
+
+/** Valid format discriminators for {@link EmitSpec}. */
+export const EMIT_FORMATS = ['ico', 'png', 'svg'] as const;
+/** Format discriminator string for {@link EmitSpec}. */
+export type EmitFormat = (typeof EMIT_FORMATS)[number];
+
+/** Emit a multi-size ICO container. */
+export interface IcoSpec {
+	format: 'ico';
+	/** Sizes to pack into this ICO (1–256). Falls back to {@link PluginOptions.sizes} when omitted. */
+	sizes?: IconSize[];
+	/** Output filename for this ICO. Falls back to {@link PluginOptions.output} or `'favicon.ico'`. */
+	filename?: string;
+	/** Inject a `<link rel="icon" type="image/x-icon">` tag pointing at this ICO. @default false */
+	inject?: boolean;
+}
+
+/** Emit one PNG file per requested size. */
+export interface PngSpec {
+	format: 'png';
+	/** Sizes to emit as individual PNG files (1–256). Required — no implicit default. */
+	sizes: IconSize[];
+	/** Filename template using `{size}` as a placeholder. @default `'favicon-{size}x{size}.png'` */
+	filenameTemplate?: string;
+	/** Inject `<link rel="icon" type="image/png">` tags.
+	 *
+	 * - `true` — inject one tag per size in {@link sizes}.
+	 * - `false` — inject nothing (default).
+	 * - `{ sizes }` — inject tags only for the listed sizes (must be a subset of {@link sizes}). */
+	inject?: boolean | { sizes?: IconSize[] };
+}
+
+/** Emit a copy of the source image (only meaningful when input is an SVG). */
+export interface SvgSpec {
+	format: 'svg';
+	/** Output filename for the copied source. Defaults to `basename(input)`. */
+	filename?: string;
+	/** Inject a `<link rel="icon" type="image/svg+xml">` tag pointing at this file. @default false */
+	inject?: boolean;
+}
+
+/** v2 shape kept for backward compatibility; will be removed in v4. Use {@link EmitSpec}[] instead.
+ *
+ * @deprecated Use the v3 {@link EmitSpec}[] form on {@link PluginOptions.emit}.
+ */
+export interface LegacyEmitOptions {
 	/** Copy the source file to output alongside the ICO.
 	 *
 	 * Pass `true` to emit with the original basename, or an object to customise.
@@ -58,6 +125,24 @@ export interface EmitOptions {
 	 * @default false
 	 */
 	inject?: boolean | InjectMode;
+}
+
+/** @deprecated Old name preserved for the v2 type export. Use {@link LegacyEmitOptions}. */
+export type EmitOptions = LegacyEmitOptions;
+
+/** Type guard: distinguishes v3 {@link EmitSpec}[] from v2 {@link LegacyEmitOptions} object. */
+export function isLegacyEmit(emit: unknown): emit is LegacyEmitOptions {
+	return emit !== null
+		&& typeof emit === 'object'
+		&& !Array.isArray(emit);
+}
+
+/** Resolved emit configuration after normalization: always an {@link EmitSpec}[] with no `undefined` slots. */
+export interface NormalizedEmit {
+	/** Resolved specs in execution order. */
+	specs: EmitSpec[];
+	/** Whether the input used the v2 {@link LegacyEmitOptions} shape (drives one-time deprecation warning). */
+	wasLegacy: boolean;
 }
 
 /** Sharp image processing options. */

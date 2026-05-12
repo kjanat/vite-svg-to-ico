@@ -47,23 +47,59 @@ svgToIco({
 });
 ```
 
-### Emit the source SVG alongside the ICO
+### The `emit` array
+
+Since v3, `emit` is an **array of per-format specs**.
+Each entry produces one or more output files
+and optionally a `<link>` tag in the page `<head>`.
+Pick the formats and sizes you want — combine freely.
 
 ```ts
 svgToIco({
 	input: 'src/icon.svg',
-	emit: { source: true },
+	emit: [
+		{ format: 'ico', sizes: [16, 32, 48], inject: true },
+		{ format: 'png', sizes: [192, 512], inject: { sizes: [192] } },
+		{ format: 'svg', filename: 'logo.svg', inject: true },
+	],
 });
 ```
 
-### Emit the source SVG with a custom filename
+What the example does:
+
+- Emits one combined `favicon.ico` containing the 16/32/48 PNG layers,
+  and injects `<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48">`.
+- Emits `favicon-192x192.png` and `favicon-512x512.png` standalone files.
+  Injects a `<link rel="icon" type="image/png" sizes="192x192">`
+  for the 192 only (per `inject: { sizes: [192] }`); the 512 is on disk
+  but not referenced in HTML.
+- Emits `logo.svg` (a copy of the source) and injects
+  `<link rel="icon" type="image/svg+xml" sizes="any">`.
+
+Common patterns:
 
 ```ts
-svgToIco({
-	input: 'src/icon.svg',
-	emit: { source: { name: 'logo.svg' } },
-});
+// Just a combined favicon.ico (matches the default — `emit` may be omitted).
+emit: [{ format: 'ico', sizes: [16, 32, 48] }];
+
+// Multiple separate ICOs for legacy tooling that expects favicon-NxN.ico.
+emit: [
+	{ format: 'ico', sizes: [16, 32, 48] },
+	{ format: 'ico', sizes: [16], filename: 'favicon-16x16.ico' },
+	{ format: 'ico', sizes: [32], filename: 'favicon-32x32.ico' },
+];
+
+// ICO + SVG source for modern browsers (SVG takes precedence when supported).
+emit: [
+	{ format: 'ico', sizes: [16, 32, 48], inject: true },
+	{ format: 'svg', inject: true },
+];
 ```
+
+When any spec has `inject: true`, the plugin strips existing
+`<link rel="icon">` and `<link rel="shortcut icon">` tags
+from the HTML before injecting the new set,
+to prevent duplicates. `apple-touch-icon` tags are preserved.
 
 ### Non-SVG input
 
@@ -73,49 +109,25 @@ format from the file extension:
 ```ts
 svgToIco({
 	input: 'src/logo.png',
+	emit: [{ format: 'ico', sizes: [16, 32, 48] }],
 });
 ```
 
-### Emit individual per-size files
+Note: a `{ format: 'svg' }` spec only emits something when the input is an SVG.
+For raster inputs, the spec is silently no-ops in the source-copy step.
 
-```ts
-svgToIco({
-	input: 'src/icon.svg',
-	emit: { sizes: true }, // emits favicon-16x16.png, favicon-32x32.png, etc.
-});
-```
+### Legacy v2 `emit` shape
 
-`emit.sizes` also accepts `'png'`, `'ico'`, or `'both'` to control the per-size
-file format:
+The `{ source, sizes, inject }` object shape from v2 still works
+via a compatibility shim and logs a one-time deprecation warning.
+It will be **removed in v4**. Migrate examples:
 
-```ts
-svgToIco({
-	input: 'src/icon.svg',
-	emit: { sizes: 'both' }, // emits both .png and .ico per size
-});
-```
-
-### Auto-inject favicon `<link>` tags
-
-```ts
-svgToIco({
-	input: 'src/icon.svg',
-	emit: { source: true, inject: true }, // injects ICO + SVG <link> tags into HTML
-});
-```
-
-Use `'full'` to also inject per-size `<link>` tags (requires `emit.sizes`):
-
-```ts
-svgToIco({
-	input: 'src/icon.svg',
-	emit: { source: true, sizes: true, inject: 'full' },
-});
-```
-
-When `emit.inject` is enabled, existing `<link rel="icon">` and
-`<link rel="shortcut icon">` tags are stripped from the HTML to prevent
-duplicates. `apple-touch-icon` tags are preserved.
+| v2                                          | v3                                                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `emit: { source: true }`                    | `emit: [{ format: 'ico' }, { format: 'svg' }]`                                                  |
+| `emit: { sizes: 'png' }`                    | `emit: [{ format: 'ico' }, { format: 'png', sizes: [16, 32, 48] }]`                             |
+| `emit: { source: true, inject: 'minimal' }` | `emit: [{ format: 'ico', inject: true }, { format: 'svg', inject: true }]`                      |
+| `emit: { sizes: 'both', inject: 'full' }`   | One ICO spec + per-size PNG/ICO specs, all with `inject: true` (see CHANGELOG migration guide). |
 
 ### Framework integration (SvelteKit, VitePress, Astro adapters)
 
@@ -190,39 +202,52 @@ svgToIco({ input: 'src/icon.svg', dev: { hmr: false } });
 
 ## Options
 
-| Option   | Type                    | Default         | Description                                        |
-| -------- | ----------------------- | --------------- | -------------------------------------------------- |
-| `input`  | `string`                | **(required)**  | Path to source image (SVG, PNG, JPEG, WebP, etc.). |
-| `output` | `string`                | `'favicon.ico'` | Output filename for the generated ICO.             |
-| `sizes`  | `number \| number[]`    | `[16, 32, 48]`  | Pixel dimensions to rasterize (1–256).             |
-| `emit`   | `EmitOptions`           | `{}`            | Control emitted files and HTML injection.          |
-| `sharp`  | `SharpOptions`          | `{}`            | Sharp image processing options.                    |
-| `dev`    | `boolean \| DevOptions` | `true`          | Control dev-server behavior.                       |
+| Option   | Type                              | Default               | Description                                                                       |
+| -------- | --------------------------------- | --------------------- | --------------------------------------------------------------------------------- |
+| `input`  | `string`                          | **(required)**        | Path to source image (SVG, PNG, JPEG, WebP, etc.).                                |
+| `sizes`  | `number \| number[]`              | `[16, 32, 48]`        | Default sizes used when an `IcoSpec` omits its own `sizes`.                       |
+| `emit`   | `EmitSpec[] \| LegacyEmitOptions` | `[{ format: 'ico' }]` | What to emit and inject. Array of specs (v3) or legacy object shape (deprecated). |
+| `output` | `string`                          | `'favicon.ico'`       | *Deprecated.* Fallback ICO filename when an `IcoSpec` omits `filename`.           |
+| `sharp`  | `SharpOptions`                    | `{}`                  | Sharp image processing options.                                                   |
+| `dev`    | `boolean \| DevOptions`           | `true`                | Control dev-server behavior.                                                      |
 
-### `emit`
+### `emit` (v3 — recommended)
 
-| Option   | Type                                  | Default | Description                             |
-| -------- | ------------------------------------- | ------- | --------------------------------------- |
-| `source` | `boolean \| { name?, enabled? }`      | `false` | Emit the source file alongside the ICO. |
-| `sizes`  | `boolean \| 'png' \| 'ico' \| 'both'` | `false` | Emit individual per-size files.         |
-| `inject` | `boolean \| 'minimal' \| 'full'`      | `false` | Inject `<link>` tags into `index.html`. |
+Array of per-format specs. Each entry is one of:
 
-#### `emit.sizes` details
+#### `IcoSpec`
 
-| Value    | Emitted per-size files                        |
-| -------- | --------------------------------------------- |
-| `true`   | `favicon-{W}x{H}.png`                         |
-| `'png'`  | `favicon-{W}x{H}.png` (same as `true`)        |
-| `'ico'`  | `favicon-{W}x{H}.ico`                         |
-| `'both'` | `favicon-{W}x{H}.png` + `favicon-{W}x{H}.ico` |
+| Field      | Type        | Default           | Description                                     |
+| ---------- | ----------- | ----------------- | ----------------------------------------------- |
+| `format`   | `'ico'`     | —                 | Discriminator.                                  |
+| `sizes`    | `number[]?` | Top-level `sizes` | Sizes to pack into this ICO (1–256).            |
+| `filename` | `string?`   | `'favicon.ico'`   | Output filename (relative to build output).     |
+| `inject`   | `boolean?`  | `false`           | Inject `<link rel="icon" type="image/x-icon">`. |
 
-#### `emit.inject` details
+#### `PngSpec`
 
-| Value       | Tags injected                                        |
-| ----------- | ---------------------------------------------------- |
-| `true`      | ICO + SVG source (if SVG input + `emit.source`)      |
-| `'minimal'` | Same as `true`                                       |
-| `'full'`    | Minimal + per-size file tags (requires `emit.sizes`) |
+| Field              | Type                               | Default                       | Description                                                           |
+| ------------------ | ---------------------------------- | ----------------------------- | --------------------------------------------------------------------- |
+| `format`           | `'png'`                            | —                             | Discriminator.                                                        |
+| `sizes`            | `number[]`                         | **(required)**                | Sizes to emit as separate PNG files (1–256).                          |
+| `filenameTemplate` | `string?`                          | `'favicon-{size}x{size}.png'` | Template using `{size}` placeholder.                                  |
+| `inject`           | `boolean \| { sizes?: number[] }?` | `false`                       | `true` injects all sizes; `{ sizes }` injects only the listed subset. |
+
+#### `SvgSpec`
+
+| Field      | Type       | Default           | Description                                                  |
+| ---------- | ---------- | ----------------- | ------------------------------------------------------------ |
+| `format`   | `'svg'`    | —                 | Discriminator.                                               |
+| `filename` | `string?`  | `basename(input)` | Output filename (only meaningful when input is an SVG).      |
+| `inject`   | `boolean?` | `false`           | Inject `<link rel="icon" type="image/svg+xml" sizes="any">`. |
+
+### `emit` (v2 — deprecated, removed in v4)
+
+| Field    | Type                                  | Default | Description                                                     |
+| -------- | ------------------------------------- | ------- | --------------------------------------------------------------- |
+| `source` | `boolean \| { name?, enabled? }`      | `false` | Emit the source file alongside the ICO.                         |
+| `sizes`  | `boolean \| 'png' \| 'ico' \| 'both'` | `false` | Emit individual per-size files.                                 |
+| `inject` | `boolean \| 'minimal' \| 'full'`      | `false` | Inject `<link>` tags. `'full'` requires `sizes` to also be set. |
 
 ### `sharp`
 

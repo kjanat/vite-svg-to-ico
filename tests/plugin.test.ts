@@ -36,10 +36,86 @@ describe('svgToIco plugin factory', () => {
 		}
 	});
 
-	it('accepts all inject modes', () => {
+	it('accepts all inject modes (legacy)', () => {
 		for (const mode of ['minimal', 'full', true, false] as const) {
 			expect(() => svgToIco({ input: FIXTURE, emit: { inject: mode } })).not.toThrow();
 		}
+	});
+
+	it('accepts v3 EmitSpec array', () => {
+		expect(() =>
+			svgToIco({
+				input: FIXTURE,
+				emit: [
+					{ format: 'ico', sizes: [16, 32, 48], inject: true },
+					{ format: 'png', sizes: [192, 512], inject: { sizes: [192] } },
+					{ format: 'svg', filename: 'logo.svg', inject: true },
+				],
+			})
+		).not.toThrow();
+	});
+
+	it('accepts empty v3 emit array (no extras emitted)', () => {
+		expect(() => svgToIco({ input: FIXTURE, emit: [] })).not.toThrow();
+	});
+});
+
+describe('v3 EmitSpec normalization', () => {
+	function captureLogger() {
+		const warns: string[] = [];
+		const infos: string[] = [];
+		return {
+			logger: {
+				info: (m: string) => infos.push(m),
+				warn: (m: string) => warns.push(m),
+				warnOnce: (m: string) => warns.push(m),
+				error: () => {},
+				clearScreen: () => {},
+				hasErrorLogged: () => false,
+				hasWarned: false,
+			},
+			warns,
+			infos,
+		};
+	}
+
+	function runConfig(opts: Parameters<typeof svgToIco>[0], logger: any) {
+		const plugins = svgToIco(opts);
+		(plugins[0] as any).configResolved({ root: '/tmp', base: '/', logger });
+		return plugins;
+	}
+
+	it('v2 emit shape logs deprecation warning once', () => {
+		const { logger, warns } = captureLogger();
+		runConfig({ input: FIXTURE, emit: { source: true, inject: 'full' } }, logger);
+		expect(warns.filter((w) => w.includes('deprecated'))).toHaveLength(1);
+	});
+
+	it('v3 emit array does NOT log deprecation warning', () => {
+		const { logger, warns } = captureLogger();
+		runConfig({ input: FIXTURE, emit: [{ format: 'ico', sizes: [16] }] }, logger);
+		expect(warns.filter((w) => w.includes('deprecated'))).toHaveLength(0);
+	});
+
+	it('rejects PngSpec without sizes', () => {
+		const { logger } = captureLogger();
+		expect(() => runConfig({ input: FIXTURE, emit: [{ format: 'png', sizes: [] }] }, logger)).toThrow(
+			'requires `sizes`',
+		);
+	});
+
+	it('rejects spec sizes out of range', () => {
+		const { logger } = captureLogger();
+		expect(() => runConfig({ input: FIXTURE, emit: [{ format: 'ico', sizes: [0, 500] as any }] }, logger)).toThrow(
+			'Must be integers 1–256',
+		);
+	});
+
+	it('rejects unknown format', () => {
+		const { logger } = captureLogger();
+		expect(() => runConfig({ input: FIXTURE, emit: [{ format: 'bmp' as any, sizes: [16] as any }] }, logger)).toThrow(
+			'invalid',
+		);
 	});
 });
 
@@ -141,16 +217,16 @@ describe('build plugin: inject-no-op warning', () => {
 
 	it('warns when inject is set but transformIndexHtml never fires', () => {
 		const { logger, warns } = mockLogger();
-		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
+		const build = getBuildPlugin({ input: FIXTURE, emit: [{ format: 'ico', inject: true }] }, logger);
 		build.closeBundle();
 		expect(warns).toHaveLength(1);
-		expect(warns[0]).toContain("inject: 'minimal' was requested");
+		expect(warns[0]).toContain('inject was requested');
 		expect(warns[0]).toContain('transformIndexHtml was never called');
 	});
 
 	it('does not warn when transformIndexHtml fires', () => {
 		const { logger, warns } = mockLogger();
-		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'full' } }, logger);
+		const build = getBuildPlugin({ input: FIXTURE, emit: [{ format: 'ico', inject: true }] }, logger);
 		build.transformIndexHtml('<html><head></head><body></body></html>');
 		build.closeBundle();
 		expect(warns).toHaveLength(0);
@@ -158,14 +234,14 @@ describe('build plugin: inject-no-op warning', () => {
 
 	it('does not warn when inject is disabled', () => {
 		const { logger, warns } = mockLogger();
-		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: false } }, logger);
+		const build = getBuildPlugin({ input: FIXTURE, emit: [{ format: 'ico', inject: false }] }, logger);
 		build.closeBundle();
 		expect(warns).toHaveLength(0);
 	});
 
 	it('does not warn when called in a non-client Vite environment (e.g. SvelteKit ssr)', () => {
 		const { logger, warns } = mockLogger();
-		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
+		const build = getBuildPlugin({ input: FIXTURE, emit: [{ format: 'ico', inject: true }] }, logger);
 		// Simulate Vite 6+ Environment API: closeBundle fires per environment;
 		// SSR-side firing must not duplicate the warning.
 		build.closeBundle.call({ environment: { name: 'ssr' } });
@@ -174,7 +250,7 @@ describe('build plugin: inject-no-op warning', () => {
 
 	it('warns once in client env when called for both client and ssr', () => {
 		const { logger, warns } = mockLogger();
-		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
+		const build = getBuildPlugin({ input: FIXTURE, emit: [{ format: 'ico', inject: true }] }, logger);
 		build.closeBundle.call({ environment: { name: 'client' } });
 		build.closeBundle.call({ environment: { name: 'ssr' } });
 		expect(warns).toHaveLength(1);
@@ -182,7 +258,7 @@ describe('build plugin: inject-no-op warning', () => {
 
 	it('resets transformIndexHtml-called flag between build cycles (watch mode)', async () => {
 		const { logger, warns } = mockLogger();
-		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
+		const build = getBuildPlugin({ input: FIXTURE, emit: [{ format: 'ico', inject: true }] }, logger);
 
 		// Cycle 1: transformIndexHtml fires (vanilla) → no warning.
 		await build.buildStart.call({

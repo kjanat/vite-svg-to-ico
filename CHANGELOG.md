@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-05-12
+
+### Added
+
+- **New `emit` API**: per-format spec array.
+  Each entry is one of `IcoSpec`, `PngSpec`, or `SvgSpec` —
+  every output is independently configured for sizes, filename, and injection.
+  Mix-and-match across formats is now first-class
+  (e.g. PNG at 192 only, ICO at 16/32/48, SVG copy injected as a separate `<link>`).
+- New types: `EmitSpec`, `IcoSpec`, `PngSpec`, `SvgSpec`,
+  `EmitFormat`, `EMIT_FORMATS`, `NormalizedEmit`, `LegacyEmitOptions`,
+  `isLegacyEmit()`.
+- New internal modules: `src/normalize-emit.ts` (v2→v3 shim + defaults),
+  `src/resolve-specs.ts` (pure spec→files+injections resolver).
+- Per-spec sizes validation (1–256, non-empty for PNG) with clear errors
+  pointing at the failing `emit[N]`.
+
+### Changed
+
+- **BREAKING:** `PluginOptions.emit` is now `EmitSpec[] | LegacyEmitOptions`.
+  The v2 object shape (`{ source, sizes, inject }`)
+  still works via a compatibility shim
+  and logs a one-time deprecation warning per build.
+  Will be removed in v4.
+- **BREAKING (soft):** `PluginOptions.output` is now `@deprecated`.
+  It still works as the fallback ICO filename
+  when an `IcoSpec` omits its own `filename`,
+  but the recommended placement is `IcoSpec.filename` directly.
+- Plugin internals rewritten to consume the resolved spec array end-to-end
+  (no more separate `emit.source` / `emit.sizes` / `emit.inject` code paths).
+- The "inject was requested but `transformIndexHtml` never fired" warning
+  is now spec-aware: triggered whenever any spec has `inject: true`,
+  regardless of v2 vs v3 input shape.
+
+### Migration guide
+
+Old (v2):
+
+```ts
+svgToIco({
+	input: 'src/icon.svg',
+	output: 'favicon.ico',
+	sizes: [16, 32, 48],
+	emit: { source: true, sizes: 'both', inject: 'full' },
+});
+```
+
+New (v3 equivalent):
+
+```ts
+svgToIco({
+	input: 'src/icon.svg',
+	emit: [
+		{ format: 'ico', sizes: [16, 32, 48], filename: 'favicon.ico', inject: true },
+		{ format: 'ico', sizes: [16], filename: 'favicon-16x16.ico', inject: true },
+		{ format: 'ico', sizes: [32], filename: 'favicon-32x32.ico', inject: true },
+		{ format: 'ico', sizes: [48], filename: 'favicon-48x48.ico', inject: true },
+		{ format: 'png', sizes: [16, 32, 48], inject: true },
+		{ format: 'svg', inject: true },
+	],
+});
+```
+
+Or, to use the new flexibility that v2 couldn't express
+(combined ICO 16/32/48, PNG 192 only, SVG as a fallback `<link>`):
+
+```ts
+svgToIco({
+	input: 'src/icon.svg',
+	emit: [
+		{ format: 'ico', sizes: [16, 32, 48], inject: true },
+		{ format: 'png', sizes: [192], inject: true },
+		{ format: 'svg', inject: true },
+	],
+});
+```
+
 ## [2.3.1] - 2026-05-12
 
 ### Changed
@@ -251,7 +328,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full TypeScript type exports
   (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.1...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.1...v3.0.0
 [2.3.1]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.1.0...v2.2.0
