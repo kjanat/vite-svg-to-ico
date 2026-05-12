@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-05-12
+
 ### Added
 
-- Build-time warning when `emit.inject` is configured but Vite's `transformIndexHtml` is never called (e.g. SvelteKit, VitePress build, some Astro adapters). The plugin now logs a clear message instead of silently producing files with no `<link>` tags injected. ([#1](https://github.com/kjanat/vite-svg-to-ico/issues/1))
+- Build-time warning when `emit.inject` is configured but Vite's `transformIndexHtml` is never called (e.g. SvelteKit, VitePress build, some Astro adapters). The plugin now logs a clear message instead of silently producing files with no `<link>` tags injected. Verified end-to-end against a real SvelteKit `adapter-static` build. ([#1](https://github.com/kjanat/vite-svg-to-ico/issues/1))
+
+### Fixed
+
+- Warning is now gated on `this.environment?.name === 'client'`. Multi-environment Vite builds (SvelteKit drives client + ssr) called `closeBundle` per environment, causing the warning to print twice; only the client environment ever triggers `transformIndexHtml`, so the SSR-side duplicate was pure noise.
+- `buildTransformIndexHtmlCalled` flag resets in `buildStart`, fixing stale state across build cycles in watch mode.
 
 ## [2.1.0] - 2026-05-12
 
@@ -125,7 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite 6 and 7 peer dependency compatibility.
 - Full TypeScript type exports (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v1.0.0...v2.0.0
