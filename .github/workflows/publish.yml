@@ -39,6 +39,5 @@ jobs:
           echo "tar=${TARBALL}" | tee -a "$GITHUB_OUTPUT"
 
       # bun publish lacks --provenance; use npm for signed provenance
-      - run: bun i -g npm
-      - run: npm publish --provenance --access public --tag "${NPM_TAG}" "${TARBALL}"
+      - run: bunx npm@latest publish --provenance --access public --tag "${NPM_TAG}" "${TARBALL}"
         env: { NPM_TAG: "${{ steps.meta.outputs.npm_tag }}", TARBALL: "${{ steps.tarball.outputs.tar }}" }
