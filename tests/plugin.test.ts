@@ -162,4 +162,31 @@ describe('build plugin: inject-no-op warning', () => {
 		build.closeBundle();
 		expect(warns).toHaveLength(0);
 	});
+
+	it('resets transformIndexHtml-called flag between build cycles (watch mode)', async () => {
+		const { logger, warns } = mockLogger();
+		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
+
+		// Cycle 1: transformIndexHtml fires (vanilla) → no warning.
+		await build.buildStart.call({
+			emitFile: () => {},
+			error: (m: string) => {
+				throw new Error(m);
+			},
+		});
+		build.transformIndexHtml('<html><head></head></html>');
+		build.closeBundle();
+		expect(warns).toHaveLength(0);
+
+		// Cycle 2: hook doesn't fire (framework swap mid-watch). Flag must have reset.
+		await build.buildStart.call({
+			emitFile: () => {},
+			error: (m: string) => {
+				throw new Error(m);
+			},
+		});
+		build.closeBundle();
+		expect(warns).toHaveLength(1);
+		expect(warns[0]).toContain('transformIndexHtml was never called');
+	});
 });

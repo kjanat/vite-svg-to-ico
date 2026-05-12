@@ -508,6 +508,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			enforce: 'post',
 
 			async buildStart() {
+				buildTransformIndexHtmlCalled = false;
 				const I = new Instrumentation();
 				I.start('Generate ICO (build)');
 
