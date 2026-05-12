@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-05-12
+
+### Changed
+
+- CLI wires `.packageJson()` into the dreamcli builder so `svg-to-ico --version`
+  and the help footer auto-sync with the published package version instead of
+  needing a manual `.version()` call.
+
 ## [2.3.0] - 2026-05-12
 
 ### Added
@@ -243,7 +251,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full TypeScript type exports
   (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.1...HEAD
+[2.3.1]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.0.1...v2.1.0
