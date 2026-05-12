@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { buildFaviconTags, INJECT_ICON_LINK_RE } from '$/html.ts';
+import { buildFaviconTags, INJECT_ICON_LINK_RE, injectTagsIntoHtml, renderTag } from '$/html.ts';
 
 describe('buildFaviconTags', () => {
 	it('minimal mode: returns ICO tag only for non-SVG input', () => {
@@ -115,5 +115,74 @@ describe('INJECT_ICON_LINK_RE', () => {
 	it('does NOT match stylesheet', () => {
 		INJECT_ICON_LINK_RE.lastIndex = 0;
 		expect('<link rel="stylesheet" href="/style.css">').not.toMatch(INJECT_ICON_LINK_RE);
+	});
+});
+
+describe('renderTag', () => {
+	it('renders a void link tag with attributes', () => {
+		expect(renderTag({
+			tag: 'link',
+			attrs: { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+		})).toBe('<link rel="icon" type="image/x-icon" href="/favicon.ico">');
+	});
+
+	it('escapes double quotes in attribute values', () => {
+		expect(renderTag({
+			tag: 'link',
+			attrs: { rel: 'icon', href: '/path"with"quotes.ico' },
+		})).toBe('<link rel="icon" href="/path&quot;with&quot;quotes.ico">');
+	});
+
+	it('skips false/undefined/null attribute values', () => {
+		expect(renderTag({
+			tag: 'link',
+			attrs: { rel: 'icon', href: '/favicon.ico', disabled: false, foo: undefined as any },
+		})).toBe('<link rel="icon" href="/favicon.ico">');
+	});
+
+	it('renders boolean true attribute as bare name', () => {
+		expect(renderTag({
+			tag: 'script',
+			attrs: { async: true, src: '/x.js' },
+			children: '',
+		})).toBe('<script async src="/x.js"></script>');
+	});
+
+	it('renders children for non-void tags', () => {
+		expect(renderTag({
+			tag: 'script',
+			attrs: { type: 'module' },
+			children: 'console.log(1)',
+		})).toBe('<script type="module">console.log(1)</script>');
+	});
+});
+
+describe('injectTagsIntoHtml', () => {
+	const FAVICON_TAG = {
+		tag: 'link',
+		attrs: { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+	} as const;
+
+	it('inserts tags before </head>', () => {
+		const html = '<html><head><title>x</title></head><body></body></html>';
+		const out = injectTagsIntoHtml(html, [FAVICON_TAG]);
+		expect(out).toContain('<link rel="icon" type="image/x-icon" href="/favicon.ico">');
+		expect(out.indexOf('<link rel="icon"')).toBeLessThan(out.indexOf('</head>'));
+	});
+
+	it('strips existing icon links but preserves apple-touch-icon', () => {
+		const html =
+			'<html><head><link rel="icon" href="/old.ico"><link rel="apple-touch-icon" href="/apple.png"></head><body></body></html>';
+		const out = injectTagsIntoHtml(html, [FAVICON_TAG]);
+		expect(out).not.toContain('/old.ico');
+		expect(out).toContain('apple-touch-icon');
+		expect(out).toContain('/favicon.ico');
+	});
+
+	it('appends tags when no </head> is present', () => {
+		const html = '<div>fragment</div>';
+		const out = injectTagsIntoHtml(html, [FAVICON_TAG]);
+		expect(out).toContain('/favicon.ico');
+		expect(out.startsWith('<div>fragment</div>')).toBe(true);
 	});
 });

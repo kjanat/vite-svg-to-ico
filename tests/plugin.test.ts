@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
-import { resolve } from 'node:path';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 import svgToIco from '$/index.ts';
 
@@ -139,27 +141,27 @@ describe('build plugin: inject-no-op warning', () => {
 		return plugins.find((p) => p.name === 'svg-to-ico:build') as any;
 	}
 
-	it('warns when inject is set but transformIndexHtml never fires', () => {
+	it('warns when inject is set but transformIndexHtml never fires', async () => {
 		const { logger, warns } = mockLogger();
 		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
-		build.closeBundle();
+		await build.closeBundle();
 		expect(warns).toHaveLength(1);
 		expect(warns[0]).toContain("inject: 'minimal' was requested");
 		expect(warns[0]).toContain('transformIndexHtml was never called');
 	});
 
-	it('does not warn when transformIndexHtml fires', () => {
+	it('does not warn when transformIndexHtml fires', async () => {
 		const { logger, warns } = mockLogger();
 		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'full' } }, logger);
 		build.transformIndexHtml('<html><head></head><body></body></html>');
-		build.closeBundle();
+		await build.closeBundle();
 		expect(warns).toHaveLength(0);
 	});
 
-	it('does not warn when inject is disabled', () => {
+	it('does not warn when inject is disabled', async () => {
 		const { logger, warns } = mockLogger();
 		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: false } }, logger);
-		build.closeBundle();
+		await build.closeBundle();
 		expect(warns).toHaveLength(0);
 	});
 
@@ -205,5 +207,101 @@ describe('build plugin: inject-no-op warning', () => {
 		build.closeBundle();
 		expect(warns).toHaveLength(1);
 		expect(warns[0]).toContain('transformIndexHtml was never called');
+	});
+});
+
+describe('build plugin: emit.injectScan', () => {
+	function mockLogger() {
+		const warns: string[] = [];
+		const infos: string[] = [];
+		const logger = {
+			info: (msg: string) => infos.push(msg),
+			warn: (msg: string) => warns.push(msg),
+			warnOnce: (msg: string) => warns.push(msg),
+			error: () => {},
+			clearScreen: () => {},
+			hasErrorLogged: () => false,
+			hasWarned: false,
+		};
+		return { logger, warns, infos };
+	}
+
+	async function setupTmp() {
+		const dir = await mkdtemp(join(tmpdir(), 'svg-to-ico-'));
+		return dir;
+	}
+
+	function getBuildPlugin(
+		opts: Parameters<typeof svgToIco>[0],
+		logger: ReturnType<typeof mockLogger>['logger'],
+		root: string,
+	) {
+		const plugins = svgToIco(opts);
+		(plugins[0] as any).configResolved({ root, base: '/', logger });
+		return plugins.find((p) => p.name === 'svg-to-ico:build') as any;
+	}
+
+	it('rewrites HTML files and suppresses the no-op warning', async () => {
+		const root = await setupTmp();
+		const htmlPath = join(root, 'index.html');
+		await writeFile(htmlPath, '<html><head><title>x</title></head><body></body></html>');
+
+		const { logger, warns, infos } = mockLogger();
+		const build = getBuildPlugin(
+			{ input: FIXTURE, emit: { inject: 'minimal', injectScan: 'index.html' } },
+			logger,
+			root,
+		);
+		await build.closeBundle();
+
+		const updated = await readFile(htmlPath, 'utf8');
+		expect(updated).toContain('rel="icon"');
+		expect(updated).toContain('/favicon.ico');
+		expect(warns).toHaveLength(0);
+		expect(infos.some((m) => m.includes('injectScan: rewrote index.html'))).toBe(true);
+	});
+
+	it('accepts an array of paths', async () => {
+		const root = await setupTmp();
+		await writeFile(join(root, 'a.html'), '<head></head>');
+		await writeFile(join(root, 'b.html'), '<head></head>');
+
+		const { logger, infos } = mockLogger();
+		const build = getBuildPlugin(
+			{ input: FIXTURE, emit: { inject: 'minimal', injectScan: ['a.html', 'b.html'] } },
+			logger,
+			root,
+		);
+		await build.closeBundle();
+
+		expect(await readFile(join(root, 'a.html'), 'utf8')).toContain('/favicon.ico');
+		expect(await readFile(join(root, 'b.html'), 'utf8')).toContain('/favicon.ico');
+		expect(infos.filter((m) => m.includes('injectScan: rewrote')).length).toBe(2);
+	});
+
+	it('warns and skips missing files', async () => {
+		const root = await setupTmp();
+		const { logger, warns } = mockLogger();
+		const build = getBuildPlugin(
+			{ input: FIXTURE, emit: { inject: 'minimal', injectScan: 'missing.html' } },
+			logger,
+			root,
+		);
+		await build.closeBundle();
+		expect(warns.some((m) => m.includes('injectScan: "missing.html"'))).toBe(true);
+	});
+
+	it('throws when injectScan is set without inject', () => {
+		expect(() => {
+			const plugins = svgToIco({ input: FIXTURE, emit: { injectScan: 'index.html' } });
+			(plugins[0] as any).configResolved({ root: '/tmp', base: '/', logger: { info: () => {}, warn: () => {} } });
+		}).toThrow('requires `emit.inject` to be set');
+	});
+
+	it('throws on empty array', () => {
+		expect(() => {
+			const plugins = svgToIco({ input: FIXTURE, emit: { inject: 'minimal', injectScan: [] } });
+			(plugins[0] as any).configResolved({ root: '/tmp', base: '/', logger: { info: () => {}, warn: () => {} } });
+		}).toThrow('must contain at least one path');
 	});
 });

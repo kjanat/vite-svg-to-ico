@@ -58,6 +58,22 @@ export interface EmitOptions {
 	 * @default false
 	 */
 	inject?: boolean | InjectMode;
+	/** Additional HTML files to inject favicon `<link>` tags into after the build
+	 * completes. Paths are resolved relative to the Vite project root.
+	 *
+	 * Use this for frameworks that bypass Vite's `transformIndexHtml` pipeline
+	 * (SvelteKit `build/index.html`, VitePress prerendered pages, etc.). The
+	 * plugin reads each file, strips existing `<link rel="icon">` tags, inserts
+	 * the configured tag set before `</head>`, and writes the file back.
+	 *
+	 * Requires {@link EmitOptions.inject} to also be set (controls *which* tags
+	 * are injected). Files that do not exist are reported via a warning and
+	 * skipped.
+	 *
+	 * @example ['build/index.html', 'build/404.html']  // SvelteKit adapter-static
+	 * @default undefined
+	 */
+	injectScan?: string | string[];
 }
 
 /** Sharp image processing options. */

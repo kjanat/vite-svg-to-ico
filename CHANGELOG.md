@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Build-time warning when `emit.inject` is configured but Vite's `transformIndexHtml` is never called (e.g. SvelteKit, VitePress build, some Astro adapters). The plugin now logs a clear message instead of silently producing files with no `<link>` tags injected. ([#1](https://github.com/kjanat/vite-svg-to-ico/issues/1))
+- `emit.injectScan` option (`string | string[]`) — explicit list of HTML files (resolved from project root) to rewrite in `closeBundle` after the build. Strips existing `<link rel="icon">` tags and inserts the configured favicon tag set before `</head>`. Use for frameworks that bypass Vite's HTML pipeline (SvelteKit `build/index.html`, VitePress prerendered pages). Requires `emit.inject` to also be set. ([#1](https://github.com/kjanat/vite-svg-to-ico/issues/1))
 
 ## [2.1.0] - 2026-05-12
 

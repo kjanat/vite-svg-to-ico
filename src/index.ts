@@ -1,8 +1,8 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
 import type { HtmlTagDescriptor, Plugin } from 'vite';
 
-import { buildFaviconTags, INJECT_ICON_LINK_RE } from './html.ts';
+import { buildFaviconTags, INJECT_ICON_LINK_RE, injectTagsIntoHtml } from './html.ts';
 import type { SizedFileInfo } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
 import type { GenerateOptions, SizedPng } from './ico.ts';
@@ -124,8 +124,15 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 	const rawIncludeSource = emitOpts?.source ?? false;
 	const rawEmitSizes = emitOpts?.sizes ?? false;
 	const rawInject = emitOpts?.inject ?? false;
+	const rawInjectScan = emitOpts?.injectScan;
 	const resizeOpts = sharpOpts?.resize;
 	const pngOpts = sharpOpts?.png;
+
+	const injectScanPaths: string[] = rawInjectScan == null
+		? []
+		: typeof rawInjectScan === 'string'
+		? [rawInjectScan]
+		: rawInjectScan;
 
 	const sizes = Array.isArray(rawSizes) ? rawSizes : [rawSizes];
 
@@ -156,6 +163,9 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 
 	/** Resolved Vite `base` path, set in `configResolved`. */
 	let resolvedBase = '/';
+
+	/** Resolved Vite project root, set in `configResolved`. */
+	let resolvedRoot = process.cwd();
 
 	// --- emitSizes normalization ---
 	const emitSizesFormat: EmitSizesFormat | false = rawEmitSizes === true
@@ -325,9 +335,27 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					);
 				}
 
+				if (rawInjectScan !== undefined) {
+					if (
+						!(typeof rawInjectScan === 'string'
+							|| (Array.isArray(rawInjectScan) && rawInjectScan.every((p) => typeof p === 'string')))
+					) {
+						throw new Error('[svg-to-ico] `emit.injectScan` must be a string or array of strings.');
+					}
+					if (injectScanPaths.length === 0) {
+						throw new Error('[svg-to-ico] `emit.injectScan` must contain at least one path.');
+					}
+					if (!injectMode) {
+						throw new Error(
+							'[svg-to-ico] `emit.injectScan` requires `emit.inject` to be set (controls which tags are injected).',
+						);
+					}
+				}
+
 				// Resolve input to absolute path for HMR comparison
 				resolvedInput = resolve(config.root, input);
 				resolvedBase = config.base;
+				resolvedRoot = config.root;
 			},
 		},
 
@@ -578,25 +606,59 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			},
 
 			/**
-			 * Surface a warning when `emit.inject` was configured but
-			 * `transformIndexHtml` was never called during this build cycle. This
-			 * happens with frameworks (SvelteKit, VitePress build, some Astro
-			 * adapters) that render HTML outside Vite's pipeline, causing the
-			 * `<link>` injection to silently no-op while files are still emitted.
+			 * Post-bundle HTML processing. Performs two roles:
+			 *
+			 * 1. **injectScan**: when `emit.injectScan` paths are configured, read
+			 *    each file (relative to project root), strip existing icon
+			 *    `<link>` tags, splice in the configured favicon tag set before
+			 *    `</head>`, and write back. Missing files surface a clear warning.
+			 * 2. **No-op warning**: when `emit.inject` was set but neither
+			 *    `transformIndexHtml` fired nor `injectScan` rewrote a file,
+			 *    warn the user that injection silently produced nothing. This
+			 *    catches frameworks (SvelteKit, VitePress, some Astro adapters)
+			 *    that bypass Vite's HTML pipeline.
 			 *
 			 * Multi-environment Vite builds (SvelteKit drives client + ssr) call
 			 * `closeBundle` per environment; only the client environment ever
-			 * triggers `transformIndexHtml`, so the warning is scoped there to
-			 * avoid duplicate output.
+			 * triggers `transformIndexHtml`, so both the scan and the warning
+			 * are scoped to the client environment to avoid duplicate work and
+			 * duplicate output.
 			 */
-			closeBundle(this: { environment?: { name?: string } }) {
+			async closeBundle(this: { environment?: { name?: string } }) {
 				const envName = this.environment?.name;
 				if (envName && envName !== 'client') return;
-				if (injectMode && !buildTransformIndexHtmlCalled) {
+
+				let scannedAny = false;
+				if (injectMode && injectScanPaths.length > 0) {
+					const tags = faviconTags({ base: resolvedBase });
+					for (const rel of injectScanPaths) {
+						const abs = resolve(resolvedRoot, rel);
+						let original: string;
+						try {
+							original = await readFile(abs, 'utf8');
+						} catch {
+							logger?.warn(
+								`[svg-to-ico] injectScan: "${rel}" — file not found at ${abs}, skipping. `
+									+ `Hint: framework adapters may write HTML after Vite's closeBundle hook. `
+									+ `If so, configure injection at the framework level instead.`,
+							);
+							continue;
+						}
+						const next = injectTagsIntoHtml(original, tags);
+						if (next !== original) {
+							await writeFile(abs, next, 'utf8');
+							scannedAny = true;
+							logger?.info(`[svg-to-ico] injectScan: rewrote ${rel}`);
+						}
+					}
+				}
+
+				if (injectMode && !buildTransformIndexHtmlCalled && !scannedAny) {
 					logger?.warn(
 						`[svg-to-ico] inject: '${injectMode}' was requested but transformIndexHtml was never called during build. `
 							+ `This happens with frameworks (SvelteKit, VitePress build, some Astro adapters) that bypass Vite's HTML pipeline. `
-							+ `Add favicon <link> tags manually to your framework's HTML template or head config — the generated files are still emitted correctly.`,
+							+ `Add favicon <link> tags manually to your framework's HTML template/head config, or set \`emit.injectScan\` to a list of HTML paths to rewrite post-build. `
+							+ `The generated favicon files are still emitted correctly.`,
 					);
 				}
 			},
