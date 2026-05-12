@@ -121,7 +121,7 @@ duplicates. `apple-touch-icon` tags are preserved.
 
 SvelteKit, VitePress, and some Astro adapters render their HTML
 **outside** Vite's pipeline, so `transformIndexHtml` never fires and
-`emit.inject` silently produces no tags. The build plugin detects this
+`emit.inject` produces no tags. The build plugin detects this
 and emits a warning, but the fix lives outside the plugin.
 
 Two options:

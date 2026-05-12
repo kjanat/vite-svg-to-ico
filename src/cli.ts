@@ -76,6 +76,14 @@ const pathArg = () => arg.custom<string>(toAbsolutePath);
 /** Reusable absolute-path flag: parsing happens at the schema layer. */
 const pathFlag = () => flag.custom<string>(toAbsolutePath);
 
+/**
+ * `generate` subcommand: rasterize a source image into a multi-size ICO favicon.
+ * Optionally also emits per-size PNG/ICO files and a copy of the source.
+ *
+ * Exported so consumers can compose it into their own `@kjanat/dreamcli` CLI
+ * or unit-test it directly via `runCommand(generate, [...])` from
+ * `@kjanat/dreamcli/testkit`.
+ */
 export const generate = command('generate')
 	.description(
 		'Rasterize a source image into a multi-size ICO favicon. Optionally also emit per-size '
@@ -179,6 +187,13 @@ export const generate = command('generate')
 		}
 	});
 
+/**
+ * `inject` subcommand: rewrite existing HTML files on disk to include the
+ * configured favicon `<link>` tag set. Strips existing icon links,
+ * preserves `apple-touch-icon`, splices new tags before `</head>`.
+ *
+ * Exported for composition and `runCommand(inject, [...])` testing.
+ */
 export const inject = command('inject')
 	.description(
 		'Rewrite existing HTML files on disk: strip `<link rel="icon">` and `<link rel="shortcut icon">` '
@@ -221,8 +236,9 @@ export const inject = command('inject')
 	)
 	.flag(
 		'input-format',
-		flag.string().default('svg').describe(
-			'Format of `--source` for the MIME type attribute. One of: svg, png, jpg, webp, avif, gif, tiff.',
+		flag.enum(['svg', 'png', 'jpg', 'webp', 'avif', 'gif', 'tiff']).default('svg').describe(
+			'Format of `--source` for the MIME type attribute. Only `svg` triggers the SVG `<link>`; '
+				+ 'other values are accepted but currently inert in tag generation.',
 		),
 	)
 	.example(
@@ -285,6 +301,10 @@ export const inject = command('inject')
 		}
 	});
 
+/**
+ * Top-level `svg-to-ico` CLI: bundles {@link generate} and {@link inject}
+ * subcommands plus shell-completion generation.
+ */
 export const app = cli('svg-to-ico')
 	.description('Generate ICO favicons and inject <link> tags into HTML files')
 	.command(generate)
