@@ -157,6 +157,17 @@ describe('v3 EmitSpec normalization', () => {
 		).not.toThrow();
 	});
 
+	it('rejects non-array, non-object emit values from JS consumers', () => {
+		// `emit: 42` and `emit: null` fail both type guards and previously
+		// silently produced an empty spec list. Should throw with the value.
+		expect(() => svgToIco({ input: FIXTURE, emit: invalid<PluginOptions['emit']>(42) })).toThrow(
+			'Invalid `emit` value',
+		);
+		expect(() => svgToIco({ input: FIXTURE, emit: invalid<PluginOptions['emit']>(null) })).toThrow(
+			'Invalid `emit` value',
+		);
+	});
+
 	it('rejects spec sizes out of range', () => {
 		const { logger } = captureLogger();
 		expect(() =>

@@ -46,8 +46,14 @@ export function normalizeEmit(opts: PluginOptions, defaultSizes: IconSize[]): No
 		};
 	}
 
-	// Unreachable in practice — the type signature rejects other shapes.
-	return { specs: [], wasLegacy: false };
+	// Unreachable in TypeScript, but JS consumers can pass shapes (`emit: 42`,
+	// `emit: null`, etc.) that fail both `Array.isArray` and `isLegacyEmit`.
+	// Fail loudly with the offending value instead of silently emitting nothing.
+	throw new Error(
+		`[svg-to-ico] Invalid \`emit\` value: expected an EmitSpec[] or LegacyEmitOptions object, received ${
+			JSON.stringify(opts.emit) ?? String(opts.emit)
+		}.`,
+	);
 }
 
 interface Defaults {
