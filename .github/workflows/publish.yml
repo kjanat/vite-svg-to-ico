@@ -31,7 +31,7 @@ jobs:
             core.setOutput('name', name)
             core.setOutput('version', version)
             core.setOutput('npm_tag', npmTag)
-            core.setOutput('npm_url', `https://www.npmjs.com/package/${name}/v/${version}`)
+            core.setOutput('npm_url', `https://npm.im/package/${name}/v/${version}`)
 
       - id: tarball
         run: |
