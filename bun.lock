@@ -28,7 +28,7 @@
         "vite-svg-to-ico": "link:vite-svg-to-ico",
       },
       "devDependencies": {
-        "vite": "latest",
+        "vite": "^8",
       },
     },
   },

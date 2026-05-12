@@ -14,10 +14,6 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - run: bun --bun bd
-      - run: bun link
-      - run: bun --cwd=tests/smoke/fixture install
-
       - run: bun test
 
       - run: bun run typecheck
