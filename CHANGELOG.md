@@ -7,92 +7,171 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-05-12
+
 ### Added
 
-- `svg-to-ico` CLI binary (shipped by this package; not tied to Vite). Two
-  subcommands: `generate` (ICO + per-size files from any sharp-supported source
-  image) and `inject` (rewrite `<link rel="icon">` tags into existing HTML files).
-  Built on `@kjanat/dreamcli`. Use as a `"postbuild"` script in `package.json` for
-  frameworks that render HTML outside Vite's pipeline (SvelteKit, VitePress, Astro
-  adapters), where the plugin's `transformIndexHtml` never fires.
-  ([#1](https://github.com/kjanat/vite-svg-to-ico/issues/1))
-- `renderTag` and `injectTagsIntoHtml` helpers in `src/html.ts` (internal), shared between the plugin and CLI.
+- `svg-to-ico` CLI binary (shipped by this package; not tied to Vite).
+  Two subcommands:
+  `generate` (ICO + per-size files from any sharp-supported source image)
+  and `inject` (rewrite `<link rel="icon">` tags into existing HTML files).
+  Built on `@kjanat/dreamcli`.
+  Use as a `"postbuild"` script in `package.json`
+  for frameworks that render HTML outside Vite's pipeline
+  (SvelteKit, VitePress, Astro adapters),
+  where the plugin's `transformIndexHtml` never fires.
+  (https://github.com/kjanat/vite-svg-to-ico/issues/1)
+- `renderTag` and `injectTagsIntoHtml` helpers in `src/html.ts` (internal),
+  shared between the plugin and CLI.
+- `engines: { node: ">=22.18.0" }` field;
+  the CLI relies on modern Node features.
 
 ### Changed
 
-- Package internal import resolution moved from `tsconfig` path aliases to Node-spec `package.json` `imports` field (`#vite-svg-to-ico` for the public entry, `#internals/*` for source-relative imports).
+- Package internal import resolution
+  moved from `tsconfig` path aliases
+  to Node-spec `package.json` `imports` field
+  (`#vite-svg-to-ico` for the public entry,
+  `#internals/*` for source-relative imports).
+- `buildFaviconTags` normalizes `base` (trailing-slash safe)
+  and strips leading slashes from joined segments —
+  `--base /app` and `--base /app/` now yield identical `/app/favicon.ico` hrefs.
+- `injectTagsIntoHtml` matches `</head>` case-insensitively
+  and preserves the original tag casing in output.
+
+### Fixed
+
+- README: dropped the unrunnable `npm i -g …` placeholder;
+  full `npm i -g vite-svg-to-ico` command shown.
+- CLI `generate`: parent directories of nested `--output` paths
+  (e.g. `icons/favicon.ico`) are created before writing
+  instead of failing with `ENOENT`.
+- CLI `inject`: only `ENOENT` is treated as "file not found, skipping";
+  permission and other I/O errors
+  are no longer mislabeled and silently swallowed.
 
 ## [2.2.0] - 2026-05-12
 
 ### Added
 
-- Build-time warning when `emit.inject` is configured but Vite's `transformIndexHtml` is never called (e.g. SvelteKit, VitePress build, some Astro adapters). The plugin now logs a clear message instead of silently producing files with no `<link>` tags injected. Verified end-to-end against a real SvelteKit `adapter-static` build. ([#1](https://github.com/kjanat/vite-svg-to-ico/issues/1))
+- Build-time warning
+  when `emit.inject` is configured
+  but Vite's `transformIndexHtml` is never called
+  (e.g. SvelteKit, VitePress build, some Astro adapters).
+  The plugin now logs a clear message
+  instead of silently producing files with no `<link>` tags injected.
+  Verified end-to-end against a real SvelteKit `adapter-static` build.
+  (https://github.com/kjanat/vite-svg-to-ico/issues/1)
 
 ### Fixed
 
-- Warning is now gated on `this.environment?.name === 'client'`. Multi-environment Vite builds (SvelteKit drives client + ssr) called `closeBundle` per environment, causing the warning to print twice; only the client environment ever triggers `transformIndexHtml`, so the SSR-side duplicate was pure noise.
-- `buildTransformIndexHtmlCalled` flag resets in `buildStart`, fixing stale state across build cycles in watch mode.
+- Warning is now gated on `this.environment?.name === 'client'`.
+  Multi-environment Vite builds (SvelteKit drives client + ssr)
+  called `closeBundle` per environment,
+  causing the warning to print twice;
+  only the client environment ever triggers `transformIndexHtml`,
+  so the SSR-side duplicate was pure noise.
+- `buildTransformIndexHtmlCalled` flag resets in `buildStart`,
+  fixing stale state across build cycles in watch mode.
 
 ## [2.1.0] - 2026-05-12
 
 ### Added
 
-- `autofix.ci` workflow for automatic dprint formatting on push and PRs
-- Vite 8 peer dependency support (`vite: ^6.0.0 || ^7.0.0 || ^8.0.0`); installs no longer rejected on Vite 8 projects
+- `autofix.ci` workflow for automatic dprint formatting on push and PRs.
+- Vite 8 peer dependency support
+  (`vite: ^6.0.0 || ^7.0.0 || ^8.0.0`);
+  installs no longer rejected on Vite 8 projects.
 
 ### Changed
 
-- Publish workflow: `--frozen-lockfile`, strict tag pattern, prerelease `next`/`latest` tag via `actions/github-script`, `bun i -g npm`, rely on `prepublishOnly` for test+typecheck gate
+- Publish workflow:
+  `--frozen-lockfile`, strict tag pattern,
+  prerelease `next`/`latest` tag via `actions/github-script`,
+  `bun i -g npm`,
+  rely on `prepublishOnly` for test+typecheck gate.
 
 ## [2.0.1] - 2026-03-01
 
 ### Fixed
 
-- Injected favicon `<link>` tags now respect Vite's `base` config. Previously, hrefs were always absolute (`/favicon.ico`), breaking deployments on subdirectory paths like GitHub Pages (`base: './'` → `./favicon.ico`).
+- Injected favicon `<link>` tags now respect Vite's `base` config.
+  Previously, hrefs were always absolute (`/favicon.ico`),
+  breaking deployments on subdirectory paths like GitHub Pages
+  (`base: './'` → `./favicon.ico`).
 
 ## [2.0.0] - 2026-02-26
 
 ### Added
 
 - `emit` option object for output control:
-  - `emit.source` — emit the source file alongside the ICO (`boolean | { name?, enabled? }`).
-  - `emit.sizes` — emit individual per-size files (`true`/`'png'`/`'ico'`/`'both'`).
-  - `emit.inject` — auto-inject `<link>` tags into HTML (`true`/`'minimal'`/`'full'`); strips existing `<link rel="icon">` tags while preserving `apple-touch-icon`.
+  - `emit.source` — emit the source file alongside the ICO
+    (`boolean | { name?, enabled? }`).
+  - `emit.sizes` — emit individual per-size files
+    (`true`/`'png'`/`'ico'`/`'both'`).
+  - `emit.inject` — auto-inject `<link>` tags into HTML
+    (`true`/`'minimal'`/`'full'`);
+    strips existing `<link rel="icon">` tags
+    while preserving `apple-touch-icon`.
 - `sharp` option object for image processing control:
   - `sharp.optimize` — toggle max PNG compression.
-  - `sharp.resize` — forward sharp `ResizeOptions` (e.g., `kernel: 'nearest'` for pixel art).
-  - `sharp.png` — forward sharp `PngOptions` (e.g., `palette: true`, custom `compressionLevel`).
+  - `sharp.resize` — forward sharp `ResizeOptions` (e.g., `kernel: 'nearest'`
+    for pixel art).
+  - `sharp.png` — forward sharp `PngOptions` (e.g., `palette: true`, custom
+    `compressionLevel`).
 - `bun` export condition for direct TypeScript source resolution in Bun.
 - Conditional exports (`bun` → `default`) with proper `./package.json` subpath.
 - `dev` option for fine-grained dev-server control (`boolean | DevOptions`):
   - `dev: false` disables the serve plugin entirely (build-only mode).
-  - `dev: { injection: 'shim' }` injects a runtime script that dynamically manages `<link>` tags instead of rewriting HTML via `transformIndexHtml` — useful for backend-rendered HTML or SPA shells.
+  - `dev: { injection: 'shim' }` injects a runtime script
+    that dynamically manages `<link>` tags
+    instead of rewriting HTML via `transformIndexHtml` —
+    useful for backend-rendered HTML or SPA shells.
   - `dev: { hmr: false }` disables favicon hot-reload on source file changes.
-- Non-SVG input support: PNG, JPEG, WebP, AVIF, GIF, and TIFF via sharp format detection.
-- New `src/html.ts` module with `buildFaviconTags()` pure function and `INJECT_ICON_LINK_RE` regex.
-- Exported `generateSizedPngs()` and `packIco()` from `ico.ts` for composable usage.
-- Runtime validation of `emit.sizes`, `emit.inject`, and `dev.injection` string values in `configResolved`.
-- New type exports: `EmitOptions`, `SharpOptions`, `EmitSizesFormat`, `InjectMode`, `DevOptions`, `DevInjection`, `GenerateOptions`.
-- `EMIT_SIZES_FORMATS`, `INJECT_MODES`, and `DEV_INJECTIONS` const arrays exported.
+- Non-SVG input support: PNG, JPEG, WebP, AVIF, GIF, and TIFF via sharp format
+  detection.
+- New `src/html.ts` module with `buildFaviconTags()` pure function and
+  `INJECT_ICON_LINK_RE` regex.
+- Exported `generateSizedPngs()` and `packIco()` from `ico.ts` for composable
+  usage.
+- Runtime validation of `emit.sizes`, `emit.inject`, and `dev.injection`
+  string values in `configResolved`.
+- New type exports: `EmitOptions`, `SharpOptions`, `EmitSizesFormat`,
+  `InjectMode`, `DevOptions`, `DevInjection`, `GenerateOptions`.
+- `EMIT_SIZES_FORMATS`, `INJECT_MODES`, and `DEV_INJECTIONS` const arrays
+  exported.
 - Complete JSDoc/TSDoc coverage across all source files.
-- Comprehensive test suite: 74 tests covering unit, plugin validation, and integration (real Vite builds + dev server).
+- Comprehensive test suite: 74 tests covering unit, plugin validation, and
+  integration (real Vite builds + dev server).
 
 ### Changed
 
-- **BREAKING:** Plugin options restructured from 10 top-level keys to 6 for better DX.
-- `emit.source` serves correct `Content-Type` for non-SVG inputs (was hardcoded to `image/svg+xml`).
-- Serve `transformIndexHtml` returns structured `{ html, tags }` instead of raw string manipulation.
-- `packIco()` signature simplified: accepts `SizedPng[]` instead of separate `Buffer[]` + `number[]`.
-- `generateSizedPngs()` now accepts a `GenerateOptions` object instead of positional args.
-- Validation of option string values now derived from const arrays instead of duplicated sets.
+- **BREAKING:** Plugin options restructured from 10 top-level keys to 6 for
+  better DX.
+- `emit.source` serves correct `Content-Type` for non-SVG inputs (was
+  hardcoded to `image/svg+xml`).
+- Serve `transformIndexHtml` returns structured `{ html, tags }` instead of
+  raw string manipulation.
+- `packIco()` signature simplified: accepts `SizedPng[]` instead of separate
+  `Buffer[]` + `number[]`.
+- `generateSizedPngs()` now accepts a `GenerateOptions` object instead of
+  positional args.
+- Validation of option string values now derived from const arrays instead
+  of duplicated sets.
 
 ### Fixed
 
-- HMR `handleHotUpdate` compared absolute `file` path to possibly-relative `input`; now resolves `input` to absolute via `config.root`.
-- `.jpg` and `.tif` extensions produced invalid MIME types (`image/jpg`, `image/tif`); now normalized to `image/jpeg` and `image/tiff`.
+- HMR `handleHotUpdate`
+  compared absolute `file` path to possibly-relative `input`;
+  now resolves `input` to absolute via `config.root`.
+- `.jpg` and `.tif` extensions produced invalid MIME types
+  (`image/jpg`, `image/tif`);
+  now normalized to `image/jpeg` and `image/tiff`.
 - Empty `sizes: []` now throws instead of producing a degenerate 6-byte ICO.
-- Empty `input: ''` now reports "must be a non-empty string" instead of misleading "unsupported format" error.
-- ICO endpoint fallback now populates per-size cache to avoid redundant `generateSizedPngs` calls.
+- Empty `input: ''` now reports "must be a non-empty string"
+  instead of misleading "unsupported format" error.
+- ICO endpoint fallback now populates per-size cache
+  to avoid redundant `generateSizedPngs` calls.
 
 ## [1.0.0] - 2026-02-26
 
@@ -114,40 +193,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- True HMR favicon swap: source SVG changes update the browser tab icon in-place without a full page reload.
-- Injected client-side script listens for the `svg-to-ico:update` custom event and swaps every `<link rel="…icon…">` href with a cache-busted URL.
-- `transformIndexHtml` hook appends a `?v=` cache-bust param to all icon `<link>` tags on initial page load during dev.
-- `Cache-Control: no-cache` header on the dev-server ICO middleware to prevent stale favicon responses.
+- True HMR favicon swap:
+  source SVG changes update the browser tab icon in-place
+  without a full page reload.
+- Injected client-side script listens for the `svg-to-ico:update` custom event
+  and swaps every `<link rel="…icon…">` href with a cache-busted URL.
+- `transformIndexHtml` hook appends a `?v=` cache-bust param
+  to all icon `<link>` tags on initial page load during dev.
+- `Cache-Control: no-cache` header on the dev-server ICO middleware
+  to prevent stale favicon responses.
 - `postpack` npm script to restore `README.md` after `prepack` formatting.
 - npm version badge in README.
 
 ### Changed
 
-- HMR mechanism replaced: `full-reload` dispatch replaced with a custom Vite HMR event (`svg-to-ico:update`), preserving client-side state across SVG edits.
+- HMR mechanism replaced:
+  `full-reload` dispatch replaced
+  with a custom Vite HMR event (`svg-to-ico:update`),
+  preserving client-side state across SVG edits.
 - README code examples reformatted to match project tab indentation style.
 
 ### Fixed
 
-- Browser could serve a stale cached favicon during dev even after the ICO was regenerated, due to missing cache-control headers and no cache-busting on the `<link>` href.
+- Browser could serve a stale cached favicon during dev
+  even after the ICO was regenerated,
+  due to missing cache-control headers and no cache-busting on the `<link>` href.
 
 ## [0.1.0] - 2026-02-26
 
 ### Added
 
 - SVG-to-ICO conversion using `sharp` for rasterization into PNG-in-ICO format.
-- Configurable icon sizes (integers 1-256, default `[16, 32, 48]`) with IDE-friendly `IconSize` type autocomplete.
-- Optional PNG optimization (compression level 9 + adaptive filtering, enabled by default).
-- Dev server middleware that serves the generated ICO at the configured output path.
+- Configurable icon sizes (integers 1-256, default `[16, 32, 48]`)
+  with IDE-friendly `IconSize` type autocomplete.
+- Optional PNG optimization
+  (compression level 9 + adaptive filtering, enabled by default).
+- Dev server middleware that serves the generated ICO
+  at the configured output path.
 - Auto-regeneration when the source SVG changes during development.
 - Build-time ICO emission as a Rollup asset.
-- `includeSource` option to emit the original SVG alongside the ICO (with optional custom filename).
+- `includeSource` option to emit the original SVG alongside the ICO
+  (with optional custom filename).
 - Input validation for required `input` path and size range constraints.
-- Debug timing instrumentation via `DEBUG=vite-svg-to-ico` environment variable.
-- Three composable sub-plugins (`config`, `serve`, `build`) for clean Vite integration.
+- Debug timing instrumentation
+  via `DEBUG=vite-svg-to-ico` environment variable.
+- Three composable sub-plugins (`config`, `serve`, `build`)
+  for clean Vite integration.
 - Vite 6 and 7 peer dependency compatibility.
-- Full TypeScript type exports (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
+- Full TypeScript type exports
+  (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.0.0...v2.0.1
@@ -155,3 +252,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kjanat/vite-svg-to-ico/releases/tag/v0.1.0
+
+<!-- markdownlint-disable-file no-duplicate-heading -->

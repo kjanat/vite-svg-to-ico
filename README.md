@@ -256,5 +256,3 @@ Set `DEBUG=vite-svg-to-ico` to enable timing instrumentation.
 ## License
 
 [MIT](https://github.com/kjanat/vite-svg-to-ico/blob/master/LICENSE)
-
-<!--markdownlint-disable-file no-hard-tabs-->
