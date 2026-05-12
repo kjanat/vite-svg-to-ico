@@ -9,8 +9,12 @@
  *
  * @example
  * ```sh
- * vite-svg-to-ico generate src/icon.svg --out-dir build --sizes 16,32,48
- * vite-svg-to-ico inject build/index.html build/404.html --sizes 16,32,48
+ * svg-to-ico generate src/icon.svg --out-dir build --sizes 16,32,48
+ * svg-to-ico inject build/index.html build/404.html --sizes 16,32,48
+ *
+ * Bundled with `vite-svg-to-ico`. The binary is named `svg-to-ico`
+ * because it is not Vite-specific — global install (`bun add -g
+ * vite-svg-to-ico`) makes it available on PATH for any HTML pipeline.
  * ```
  */
 
@@ -154,7 +158,7 @@ export const inject = command('inject')
 		}
 	});
 
-export const app = cli('vite-svg-to-ico')
+export const app = cli('svg-to-ico')
 	.description('Generate ICO favicons and inject <link> tags into HTML files')
 	.command(generate)
 	.command(inject)

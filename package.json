@@ -69,6 +69,6 @@
 		"tag": "latest"
 	},
 	"bin": {
-		"vite-svg-to-ico": "./dist/cli.mjs"
+		"svg-to-ico": "./dist/cli.mjs"
 	}
 }

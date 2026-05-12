@@ -4,7 +4,7 @@ export default defineConfig({
 	entry: ['src/index.ts', 'src/cli.ts'],
 	dts: { entry: 'src/index.ts' },
 	exports: {
-		bin: './src/cli.ts',
+		bin: { 'svg-to-ico': './src/cli.ts' },
 		customExports(exports) {
 			const entry = exports['.'];
 			if (typeof entry === 'string') {

@@ -131,7 +131,7 @@ Two options:
 plugin still emits the ICO/SVG files — only the tag injection moves to
 the framework.
 
-**2. Use the `vite-svg-to-ico` CLI as a `postbuild` step.** The CLI
+**2. Use the bundled `svg-to-ico` CLI as a `postbuild` step.** The CLI
 rewrites HTML files on disk after the framework's adapter finishes
 writing them. Useful when you want a single source of truth for the
 icon sizes and don't want to duplicate them in framework config.
@@ -139,20 +139,23 @@ icon sizes and don't want to duplicate them in framework config.
 ```json
 {
 	"scripts": {
-		"build": "vite build && vite-svg-to-ico inject build/index.html build/404.html --sizes 16,32,48 --source favicon.svg"
+		"build": "vite build && svg-to-ico inject build/index.html build/404.html --sizes 16,32,48 --source favicon.svg"
 	}
 }
 ```
 
-The CLI also exposes `generate` for producing the ICO/per-size files
-from any sharp-supported source image — useful in non-Vite pipelines:
+The CLI is **not Vite-specific** — it ships with this package as a
+convenience but works against any HTML and any image source. Install
+the package globally (`bun add -g vite-svg-to-ico`, `npm i -g …`) to
+get the `svg-to-ico` command on your PATH for use in non-Vite
+pipelines, one-off CI scripts, or other framework toolchains:
 
 ```sh
-vite-svg-to-ico generate src/icon.svg --out-dir build --sizes 16,32,48 --emit-source --emit-sizes png
-vite-svg-to-ico inject build/index.html --sizes 16,32,48 --source icon.svg
+svg-to-ico generate src/icon.svg --out-dir build --sizes 16,32,48 --emit-source --emit-sizes png
+svg-to-ico inject build/index.html --sizes 16,32,48 --source icon.svg
 ```
 
-Run `vite-svg-to-ico --help` for the full surface.
+Run `svg-to-ico --help` for the full surface.
 
 ### Override sharp options
 
