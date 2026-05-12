@@ -561,6 +561,11 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 				}
 			},
 
+			/**
+			 * Strip existing icon `<link>` tags from the HTML and append the
+			 * configured favicon tag set. Records that the hook fired so
+			 * {@link closeBundle} can detect frameworks that bypass this pipeline.
+			 */
 			transformIndexHtml(html) {
 				buildTransformIndexHtmlCalled = true;
 				if (!injectMode) return;
@@ -572,6 +577,13 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 				};
 			},
 
+			/**
+			 * Surface a warning when `emit.inject` was configured but
+			 * `transformIndexHtml` was never called during this build cycle. This
+			 * happens with frameworks (SvelteKit, VitePress build, some Astro
+			 * adapters) that render HTML outside Vite's pipeline, causing the
+			 * `<link>` injection to silently no-op while files are still emitted.
+			 */
 			closeBundle() {
 				if (injectMode && !buildTransformIndexHtmlCalled) {
 					logger?.warn(
