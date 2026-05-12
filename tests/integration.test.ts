@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { build, createServer, type InlineConfig, type ViteDevServer } from 'vite';
 
 import svgToIco from '#vite-svg-to-ico';
+import { unwrap } from './_helpers.ts';
 
 const FIXTURES = resolve(import.meta.dirname, 'fixtures/basic-project');
 const ICON_SVG = join(FIXTURES, 'icon.svg');
@@ -64,7 +65,7 @@ describe('integration: build', () => {
 		const files = await runBuild({ input: 'icon.svg' });
 		expect(files.has('favicon.ico')).toBe(true);
 
-		const ico = files.get('favicon.ico')!;
+		const ico = unwrap(files.get('favicon.ico'));
 		// ICO magic: reserved=0x0000, type=0x0001
 		expect(ico[0]).toBe(0);
 		expect(ico[1]).toBe(0);
@@ -81,7 +82,7 @@ describe('integration: build', () => {
 
 	it('emits with custom sizes', async () => {
 		const files = await runBuild({ input: 'icon.svg', sizes: [16, 64, 256] });
-		const ico = files.get('favicon.ico')!;
+		const ico = unwrap(files.get('favicon.ico'));
 		expect(ico.readUInt16LE(4)).toBe(3);
 
 		// Size 256 is encoded as 0 in ICO
@@ -91,7 +92,7 @@ describe('integration: build', () => {
 
 	it('emits single size', async () => {
 		const files = await runBuild({ input: 'icon.svg', sizes: 32 });
-		const ico = files.get('favicon.ico')!;
+		const ico = unwrap(files.get('favicon.ico'));
 		expect(ico.readUInt16LE(4)).toBe(1);
 		expect(ico[6]).toBe(32); // width
 	});
@@ -101,7 +102,7 @@ describe('integration: build', () => {
 		expect(files.has('favicon.ico')).toBe(true);
 		expect(files.has('icon.svg')).toBe(true);
 
-		const svg = files.get('icon.svg')!.toString();
+		const svg = unwrap(files.get('icon.svg')).toString();
 		expect(svg).toContain('<svg');
 	});
 
@@ -121,7 +122,7 @@ describe('integration: build', () => {
 		expect(files.has('favicon-32x32.png')).toBe(true);
 
 		// Verify they're actually PNGs (magic bytes)
-		const png16 = files.get('favicon-16x16.png')!;
+		const png16 = unwrap(files.get('favicon-16x16.png'));
 		expect(png16[0]).toBe(0x89);
 		expect(png16[1]).toBe(0x50); // P
 		expect(png16[2]).toBe(0x4e); // N
@@ -136,7 +137,7 @@ describe('integration: build', () => {
 		expect(files.has('favicon-16x16.png')).toBe(false);
 
 		// Each single-size ICO should have 1 entry
-		const ico16 = files.get('favicon-16x16.ico')!;
+		const ico16 = unwrap(files.get('favicon-16x16.ico'));
 		expect(ico16.readUInt16LE(4)).toBe(1);
 		expect(ico16[6]).toBe(16);
 	});
@@ -198,7 +199,7 @@ describe('integration: build', () => {
 		// Should have exactly one ico link (injected), not a duplicate
 		const icoMatches = html.match(/rel="icon"[^>]*favicon\.ico/g);
 		expect(icoMatches).not.toBeNull();
-		expect(icoMatches!.length).toBe(1);
+		expect(unwrap(icoMatches).length).toBe(1);
 	});
 
 	it('works with PNG input', async () => {
@@ -210,7 +211,7 @@ describe('integration: build', () => {
 		try {
 			const files = await runBuild({ input: 'icon.png' });
 			expect(files.has('favicon.ico')).toBe(true);
-			const ico = files.get('favicon.ico')!;
+			const ico = unwrap(files.get('favicon.ico'));
 			expect(ico.readUInt16LE(2)).toBe(1); // ICO type
 		} finally {
 			rmSync(pngPath, { force: true });
@@ -233,7 +234,7 @@ describe('integration: build', () => {
 			sizes: [32],
 			sharp: { png: { palette: true, colours: 64 } },
 		});
-		const ico = files.get('favicon.ico')!;
+		const ico = unwrap(files.get('favicon.ico'));
 		expect(ico.readUInt16LE(4)).toBe(1);
 	});
 });

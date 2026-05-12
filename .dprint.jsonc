@@ -10,4 +10,13 @@
 		"formatComments": true,
 		"quotes": "single",
 	},
+	"markdown": { "associations": ["!**/*.md"] },
+	"prettier": {
+		"associations": ["**/*.md"],
+		"singleQuote": true,
+		"useTabs": false,
+	},
+	"plugins": [
+		"https://plugins.dprint.dev/prettier-0.69.0.json@3de5c7cf5cdbae7b214f404b12503c92e7964be5fffd442b998e6d5fe4ba0e7b",
+	],
 }

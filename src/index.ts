@@ -1,132 +1,122 @@
 import { readFile } from 'node:fs/promises';
-import { basename, extname, resolve } from 'node:path';
-import type { HtmlTagDescriptor, Plugin } from 'vite';
+import { extname, resolve } from 'node:path';
 
-import { buildFaviconTags, INJECT_ICON_LINK_RE } from './html.ts';
-import type { SizedFileInfo } from './html.ts';
-import { generateSizedPngs, packIco } from './ico.ts';
+import type { Connect, HtmlTagDescriptor, Plugin } from 'vite';
+
+import { INJECT_ICON_LINK_RE } from './html.ts';
 import type { GenerateOptions, SizedPng } from './ico.ts';
+import { generateSizedPngs, packIco } from './ico.ts';
 import { DEBUG, Instrumentation } from './instrumentation.ts';
+import { normalizeEmit } from './normalize-emit.ts';
+import { type ResolvedFile, resolveSpecs } from './resolve-specs.ts';
 import type {
 	DevInjection,
 	DevOptions,
-	EmitOptions,
+	EmitFormat,
 	EmitSizesFormat,
+	EmitSpec,
 	IconSize,
+	IcoSpec,
 	IncludeSourceOptions,
 	InjectMode,
+	NormalizedEmit,
 	PluginOptions,
+	PngSpec,
 	SharpOptions,
+	SvgSpec,
 } from './types.ts';
-import { DEV_INJECTIONS, EMIT_SIZES_FORMATS, INJECT_MODES, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from './types.ts';
+import type { EmitOptions, LegacyEmitOptions } from './types.ts'; // Re-exported for v2 compatibility.
+import {
+	DEV_INJECTIONS,
+	EMIT_FORMATS,
+	EMIT_SIZES_FORMATS,
+	INJECT_MODES,
+	SUPPORTED_EXTENSIONS,
+	SVG_EXTENSIONS,
+} from './types.ts';
+import { isLegacyEmit } from './types.ts';
 
+/**
+ * Public type surface re-exported from `./types.ts` (plus `GenerateOptions`
+ * from `./ico.ts`). Each type is documented at its definition site; this
+ * manifest is the package's external import target for consumers that need
+ * to spell out option/spec shapes.
+ */
 export type {
 	DevInjection,
 	DevOptions,
+	EmitFormat,
 	EmitOptions,
 	EmitSizesFormat,
+	EmitSpec,
 	GenerateOptions,
 	IconSize,
+	IcoSpec,
 	IncludeSourceOptions,
 	InjectMode,
+	LegacyEmitOptions,
+	NormalizedEmit,
 	PluginOptions,
+	PngSpec,
 	SharpOptions,
+	SvgSpec,
 };
 
 /**
- * Vite plugin that converts an image source into a multi-size `.ico` favicon.
+ * Vite plugin that converts an image source into one or more favicon assets.
  *
  * Returns three composable sub-plugins:
- * 1. **config** — validates options after config is resolved.
- * 2. **serve** — lazily generates the ICO and serves it via dev-server middleware;
+ * 1. **config** — validates options after Vite config resolves.
+ * 2. **serve** — generates assets on demand and serves them via dev middleware;
  *    regenerates on HMR when the source file changes.
- * 3. **build** — generates the ICO at build time and emits it as a Rollup asset.
+ * 3. **build** — generates assets at build time and emits them as Rollup assets.
  *
  * @example
  * ```ts
- * // Basic usage
- * // vite.config.ts
+ * // vite.config.ts — minimal
  * import { defineConfig } from 'vite';
  * import svgToIco from 'vite-svg-to-ico';
  *
  * export default defineConfig({
- *   plugins: [
- *     svgToIco({ input: 'src/icon.svg' }),
+ *   plugins: [svgToIco({ input: 'src/icon.svg' })],
+ * });
+ * // → emits favicon.ico (16/32/48). No HTML injection.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Mix-and-match: combined ICO, per-size PNGs, source SVG, selective inject.
+ * svgToIco({
+ *   input: 'src/icon.svg',
+ *   emit: [
+ *     { format: 'ico', sizes: [16, 32, 48], inject: true },
+ *     { format: 'png', sizes: [192, 512], inject: { sizes: [192] } },
+ *     { format: 'svg', filename: 'logo.svg', inject: true },
  *   ],
  * });
  * ```
  *
  * @example
  * ```ts
- * // Custom sizes and output filename
- * svgToIco({
- *   input: 'src/logo.svg',
- *   output: 'icon.ico',
- *   sizes: [16, 24, 32, 48, 64, 128, 256],
- * })
- * ```
- *
- * @example
- * ```ts
- * // Emit individual per-size PNGs alongside the ICO
+ * // v2 shape (deprecated, accepted via shim, removed in v4):
  * svgToIco({
  *   input: 'src/icon.svg',
- *   emit: { sizes: true },
- * })
- * ```
- *
- * @example
- * ```ts
- * // Auto-inject favicon link tags into HTML
- * svgToIco({
- *   input: 'src/icon.svg',
- *   emit: { source: true, inject: true },
- * })
- * ```
- *
- * @example
- * ```ts
- * // Use a PNG source instead of SVG
- * svgToIco({
- *   input: 'src/icon.png',
- *   emit: { inject: 'full', sizes: true },
- * })
- * ```
- *
- * @example
- * ```ts
- * // Override sharp resize/PNG options
- * svgToIco({
- *   input: 'src/pixel-icon.svg',
- *   sharp: {
- *     resize: { kernel: 'nearest' },  // crisp pixel art
- *     png: { palette: true, colours: 64 },
- *   },
- * })
+ *   emit: { source: true, sizes: 'both', inject: 'full' },
+ * });
  * ```
  */
 export default function svgToIco(opts: PluginOptions): Plugin[] {
-	let generatedIco: Buffer | null = null;
 	let generatedPngs: SizedPng[] | null = null;
+	let cachedInputBuffer: Buffer | null = null;
 	let logger: import('vite').Logger | null = null;
 	let buildTransformIndexHtmlCalled = false;
+	let legacyWarned = false;
 
-	const {
-		input,
-		output = 'favicon.ico',
-		sizes: rawSizes = [16, 32, 48],
-		emit: emitOpts,
-		sharp: sharpOpts,
-		dev: rawDev = true,
-	} = opts;
+	const { input, sizes: rawSizes = [16, 32, 48], sharp: sharpOpts, dev: rawDev = true } = opts;
 
 	const optimize = sharpOpts?.optimize ?? true;
-	const rawIncludeSource = emitOpts?.source ?? false;
-	const rawEmitSizes = emitOpts?.sizes ?? false;
-	const rawInject = emitOpts?.inject ?? false;
 	const resizeOpts = sharpOpts?.resize;
 	const pngOpts = sharpOpts?.png;
-
 	const sizes = Array.isArray(rawSizes) ? rawSizes : [rawSizes];
 
 	// --- dev normalization ---
@@ -135,14 +125,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		? { ...devDefaults, enabled: rawDev }
 		: { ...devDefaults, ...rawDev };
 
-	const sourceOpts: { enabled: boolean; name: string } = typeof rawIncludeSource === 'object'
-		? { enabled: rawIncludeSource.enabled ?? true, name: rawIncludeSource.name ?? basename(input) }
-		: { enabled: !!rawIncludeSource, name: basename(input) };
-
-	/** Shared generation options threaded to every `generateSizedPngs` call. */
-	const genOpts: GenerateOptions = { sizes, optimize, resize: resizeOpts, png: pngOpts };
-
-	// --- Input format detection ---
+	// --- input format detection ---
 	const inputExt = extname(input).toLowerCase();
 	const inputFormat = SVG_EXTENSIONS.has(inputExt) ? 'svg' : inputExt.replace('.', '');
 
@@ -151,52 +134,51 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 	const mimeFormat = MIME_OVERRIDES[inputFormat] ?? inputFormat;
 	const sourceMimeType = inputFormat === 'svg' ? 'image/svg+xml' : `image/${mimeFormat}`;
 
+	// --- emit normalization → spec array ---
+	const { specs, wasLegacy } = normalizeEmit(opts, sizes);
+	const resolution = resolveSpecs(specs, { inputFormat });
+
 	/** Resolved absolute path to the input file, set in `configResolved`. */
 	let resolvedInput = input;
-
 	/** Resolved Vite `base` path, set in `configResolved`. */
 	let resolvedBase = '/';
-
-	// --- emitSizes normalization ---
-	const emitSizesFormat: EmitSizesFormat | false = rawEmitSizes === true
-		? 'png'
-		: rawEmitSizes === false
-		? false
-		: rawEmitSizes;
-
-	const emitPng = emitSizesFormat === 'png' || emitSizesFormat === 'both';
-	const emitIco = emitSizesFormat === 'ico' || emitSizesFormat === 'both';
-
-	// --- inject normalization ---
-	const injectMode: InjectMode | false = rawInject === true
-		? 'minimal'
-		: rawInject === false
-		? false
-		: rawInject;
-
-	// --- Output stem for per-size filenames ---
-	const outputStem = output.replace(/\.ico$/i, '');
-
-	/** Build the list of per-size files that will be emitted. */
-	function buildSizedFileInfos(): SizedFileInfo[] {
-		if (!emitSizesFormat) return [];
-		const files: SizedFileInfo[] = [];
-		for (const size of sizes) {
-			if (emitPng) {
-				files.push({ name: `${outputStem}-${size}x${size}.png`, size, format: 'png' });
-			}
-			if (emitIco) {
-				files.push({ name: `${outputStem}-${size}x${size}.ico`, size, format: 'x-icon' });
-			}
-		}
-		return files;
-	}
-
 	/** Cache-bust key appended to icon hrefs; updated on each HMR cycle. */
 	let cacheId = Date.now().toString(36);
 
+	/** Generation options shared with sharp; sizes vary per call. */
+	const genOptsFor = (s: IconSize[]): GenerateOptions => ({
+		sizes: s,
+		optimize,
+		resize: resizeOpts,
+		png: pngOpts,
+	});
+
 	/** Matches `<link>` tags whose `rel` contains `icon` (covers `icon`, `shortcut icon`, `apple-touch-icon`). */
 	const ICON_LINK_RE = /(<link\b[^>]*\brel\s*=\s*["'][^"']*icon[^"']*["'][^>]*\bhref\s*=\s*["'])([^"']+)(["'][^>]*>)/gi;
+
+	/** Apply cache-bust param to an href string. */
+	function cacheBust(href: string): string {
+		const sep = href.includes('?') ? '&' : '?';
+		return `${href}${sep}v=${cacheId}`;
+	}
+
+	/** Prepend `base` to a filename (handles missing/trailing slashes). */
+	function withBase(base: string, filename: string): string {
+		const b = base.endsWith('/') ? base : `${base}/`;
+		return `${b}${filename.replace(/^\/+/, '')}`;
+	}
+
+	/** Build favicon `<link>` tag descriptors from resolved injections. */
+	function faviconTags(options?: { base?: string; applyCacheBust?: boolean }): HtmlTagDescriptor[] {
+		const base = options?.base ?? '/';
+		const bust = options?.applyCacheBust ?? false;
+		return resolution.injections.map((inj) => {
+			const href = bust ? cacheBust(withBase(base, inj.filename)) : withBase(base, inj.filename);
+			const attrs: Record<string, string> = { rel: inj.rel, type: inj.type, href };
+			if (inj.sizes) attrs['sizes'] = inj.sizes;
+			return { tag: inj.tag, attrs, injectTo: 'head' as const };
+		});
+	}
 
 	/**
 	 * Small client-side HMR snippet injected during dev.
@@ -217,33 +199,10 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		'}',
 	].join('\n');
 
-	/** Build favicon tags for HTML injection. */
-	function faviconTags(options?: { base?: string }): HtmlTagDescriptor[] {
-		if (!injectMode) return [];
-		return buildFaviconTags({
-			output,
-			sizes,
-			sourceEmitted: sourceOpts.enabled,
-			sourceName: sourceOpts.name,
-			inputFormat,
-			mode: injectMode,
-			sizedFiles: buildSizedFileInfos(),
-			base: options?.base,
-		});
-	}
-
-	/** Apply cache-bust param to an href string. */
-	function cacheBust(href: string): string {
-		const sep = href.includes('?') ? '&' : '?';
-		return `${href}${sep}v=${cacheId}`;
-	}
-
 	/** Build the shim script that dynamically manages link tags. */
 	function buildShimScript(): string {
 		const tags = faviconTags();
-		const linksJson = JSON.stringify(
-			tags.map((t) => t.attrs).filter(Boolean),
-		);
+		const linksJson = JSON.stringify(tags.map((t) => t.attrs).filter(Boolean));
 		const lines = [
 			'// svg-to-ico shim: dynamically inject favicon links',
 			`const links = ${linksJson};`,
@@ -270,6 +229,68 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		return lines.join('\n');
 	}
 
+	/** Read + cache the source input buffer. */
+	async function inputBytes(): Promise<Buffer> {
+		if (!cachedInputBuffer) cachedInputBuffer = await readFile(resolvedInput);
+		return cachedInputBuffer;
+	}
+
+	/** Ensure required PNGs are generated, return them. */
+	async function pngs(): Promise<SizedPng[]> {
+		if (!generatedPngs) {
+			generatedPngs = await generateSizedPngs(resolvedInput, genOptsFor(resolution.requiredSizes));
+		}
+		return generatedPngs;
+	}
+
+	/** Produce bytes for a resolved file. */
+	async function produce(file: ResolvedFile): Promise<Buffer> {
+		switch (file.source.kind) {
+			case 'source-copy':
+				return inputBytes();
+			case 'png': {
+				const all = await pngs();
+				const png = all.find((p) => p.size === (file.source as { size: IconSize }).size);
+				if (!png) {
+					throw new Error(`[svg-to-ico] internal: missing PNG size ${(file.source as { size: IconSize }).size}`);
+				}
+				return png.buffer;
+			}
+			case 'single-ico': {
+				const all = await pngs();
+				const png = all.find((p) => p.size === (file.source as { size: IconSize }).size);
+				if (!png) {
+					throw new Error(`[svg-to-ico] internal: missing PNG size ${(file.source as { size: IconSize }).size}`);
+				}
+				return packIco([png]);
+			}
+			case 'combined-ico': {
+				const all = await pngs();
+				const wantSizes = (file.source as { sizes: IconSize[] }).sizes;
+				const subset = wantSizes
+					.map((s) => all.find((p) => p.size === s))
+					.filter((p): p is SizedPng => p !== undefined);
+				return packIco(subset);
+			}
+		}
+	}
+
+	/** Content-Type header for a file based on its mime sub-type. */
+	function contentType(mime: string): string {
+		return mime === 'svg+xml' ? sourceMimeType : `image/${mime}`;
+	}
+
+	/** Log the v2 deprecation warning at most once per plugin instance. */
+	function warnIfLegacy(): void {
+		if (!wasLegacy || legacyWarned) return;
+		legacyWarned = true;
+		logger?.warn?.(
+			`[svg-to-ico] The \`emit: { source, sizes, inject }\` object shape is deprecated and will be removed in v4. `
+				+ `Migrate to the v3 array form: \`emit: [{ format: 'ico', ... }, { format: 'png', ... }]\`. `
+				+ `See https://github.com/kjanat/vite-svg-to-ico/blob/master/CHANGELOG.md for the migration guide.`,
+		);
+	}
+
 	return [
 		{
 			name: 'svg-to-ico:config',
@@ -277,41 +298,82 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 
 			configResolved(config) {
 				logger = config.logger;
+				warnIfLegacy();
+
 				if (!input) {
 					throw new Error('[svg-to-ico] `input` must be a non-empty string');
 				}
-
 				if (!SUPPORTED_EXTENSIONS.has(inputExt)) {
 					throw new Error(
 						`[svg-to-ico] Unsupported input format: "${inputExt}". Supported: ${[...SUPPORTED_EXTENSIONS].join(', ')}`,
 					);
 				}
-
 				if (sizes.length === 0) {
 					throw new Error('[svg-to-ico] `sizes` must contain at least one value');
 				}
 
-				const invalid = sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
-				if (invalid.length > 0) {
-					throw new Error(
-						`[svg-to-ico] Invalid sizes: ${invalid.join(', ')}. Must be integers 1–256.`,
-					);
+				// Validate top-level sizes 1–256.
+				const invalidTop = sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
+				if (invalidTop.length > 0) {
+					throw new Error(`[svg-to-ico] Invalid sizes: ${invalidTop.join(', ')}. Must be integers 1–256.`);
 				}
 
-				if (typeof rawEmitSizes === 'string' && !(EMIT_SIZES_FORMATS as readonly string[]).includes(rawEmitSizes)) {
-					throw new Error(
-						`[svg-to-ico] Invalid emitSizes value: "${rawEmitSizes}". Must be boolean, ${
-							EMIT_SIZES_FORMATS.map((f) => `'${f}'`).join(', ')
-						}.`,
-					);
+				// Validate every spec.
+				for (const [i, spec] of specs.entries()) {
+					if (!(EMIT_FORMATS as readonly string[]).includes(spec.format)) {
+						throw new Error(
+							`[svg-to-ico] emit[${i}].format invalid: "${spec.format}". Must be one of ${
+								EMIT_FORMATS.map((f) => `'${f}'`).join(', ')
+							}.`,
+						);
+					}
+					if (spec.format === 'ico' && spec.sizes) {
+						if (spec.sizes.length === 0) {
+							throw new Error(`[svg-to-ico] emit[${i}] (ico) requires \`sizes\` with at least one value.`);
+						}
+						const bad = spec.sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
+						if (bad.length > 0) {
+							throw new Error(`[svg-to-ico] emit[${i}].sizes invalid: ${bad.join(', ')}. Must be integers 1–256.`);
+						}
+					}
+					if (spec.format === 'png') {
+						if (!spec.sizes || spec.sizes.length === 0) {
+							throw new Error(`[svg-to-ico] emit[${i}] (png) requires \`sizes\` with at least one value.`);
+						}
+						const bad = spec.sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
+						if (bad.length > 0) {
+							throw new Error(`[svg-to-ico] emit[${i}].sizes invalid: ${bad.join(', ')}. Must be integers 1–256.`);
+						}
+						if (typeof spec.inject === 'object' && spec.inject !== null && spec.inject.sizes) {
+							const allowed = new Set(spec.sizes);
+							const bad = spec.inject.sizes.filter((s) => !allowed.has(s));
+							if (bad.length > 0) {
+								throw new Error(
+									`[svg-to-ico] emit[${i}].inject.sizes contains values not in spec.sizes: ${bad.join(', ')}. `
+										+ `Must be a subset of [${spec.sizes.join(', ')}].`,
+								);
+							}
+						}
+					}
 				}
 
-				if (typeof rawInject === 'string' && !(INJECT_MODES as readonly string[]).includes(rawInject)) {
-					throw new Error(
-						`[svg-to-ico] Invalid inject value: "${rawInject}". Must be boolean, ${
-							INJECT_MODES.map((m) => `'${m}'`).join(', ')
-						}.`,
-					);
+				// Legacy shape: keep v2-era string validation for nicer error messages.
+				if (wasLegacy && isLegacyEmit(opts.emit)) {
+					const legacy = opts.emit;
+					if (typeof legacy.sizes === 'string' && !(EMIT_SIZES_FORMATS as readonly string[]).includes(legacy.sizes)) {
+						throw new Error(
+							`[svg-to-ico] Invalid emitSizes value: "${legacy.sizes}". Must be boolean, ${
+								EMIT_SIZES_FORMATS.map((f) => `'${f}'`).join(', ')
+							}.`,
+						);
+					}
+					if (typeof legacy.inject === 'string' && !(INJECT_MODES as readonly string[]).includes(legacy.inject)) {
+						throw new Error(
+							`[svg-to-ico] Invalid inject value: "${legacy.inject}". Must be boolean, ${
+								INJECT_MODES.map((m) => `'${m}'`).join(', ')
+							}.`,
+						);
+					}
 				}
 
 				if (
@@ -325,7 +387,6 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					);
 				}
 
-				// Resolve input to absolute path for HMR comparison
 				resolvedInput = resolve(config.root, input);
 				resolvedBase = config.base;
 			},
@@ -339,83 +400,19 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					enforce: 'post' as const,
 
 					configureServer(server: import('vite').ViteDevServer) {
-						// Main ICO endpoint
-						server.middlewares.use(`/${output}`, async (_req: any, res: any, next: any) => {
-							try {
-								if (!generatedIco) {
-									const pngs = await generateSizedPngs(resolvedInput, genOpts);
-									generatedIco = packIco(pngs);
-									if (emitSizesFormat) generatedPngs = pngs;
-								}
-								res.setHeader('Content-Type', 'image/x-icon');
-								res.setHeader('Cache-Control', 'no-cache');
-								res.end(generatedIco);
-							} catch (e: any) {
-								next(e);
-							}
-						});
-
-						// Source file endpoint
-						if (sourceOpts.enabled) {
-							server.middlewares.use(`/${sourceOpts.name}`, async (_req: any, res: any, next: any) => {
+						// Register one middleware per resolved file.
+						for (const file of resolution.files) {
+							const handler: Connect.NextHandleFunction = async (_req, res, next) => {
 								try {
-									const buffer = await readFile(resolvedInput);
-									res.setHeader('Content-Type', sourceMimeType);
-									res.end(buffer);
-								} catch (e: any) {
-									next(e);
+									const bytes = await produce(file);
+									res.setHeader('Content-Type', contentType(file.mime));
+									res.setHeader('Cache-Control', 'no-cache');
+									res.end(bytes);
+								} catch (e) {
+									next(e instanceof Error ? e : new Error(String(e)));
 								}
-							});
-						}
-
-						// Per-size file endpoints
-						if (emitSizesFormat) {
-							for (const size of sizes) {
-								if (emitPng) {
-									server.middlewares.use(
-										`/${outputStem}-${size}x${size}.png`,
-										async (_req: any, res: any, next: any) => {
-											try {
-												if (!generatedPngs) {
-													generatedPngs = await generateSizedPngs(resolvedInput, genOpts);
-												}
-												const png = generatedPngs.find((p) => p.size === size);
-												if (!png) {
-													next();
-													return;
-												}
-												res.setHeader('Content-Type', 'image/png');
-												res.setHeader('Cache-Control', 'no-cache');
-												res.end(png.buffer);
-											} catch (e: any) {
-												next(e);
-											}
-										},
-									);
-								}
-								if (emitIco) {
-									server.middlewares.use(
-										`/${outputStem}-${size}x${size}.ico`,
-										async (_req: any, res: any, next: any) => {
-											try {
-												if (!generatedPngs) {
-													generatedPngs = await generateSizedPngs(resolvedInput, genOpts);
-												}
-												const png = generatedPngs.find((p) => p.size === size);
-												if (!png) {
-													next();
-													return;
-												}
-												res.setHeader('Content-Type', 'image/x-icon');
-												res.setHeader('Cache-Control', 'no-cache');
-												res.end(packIco([png]));
-											} catch (e: any) {
-												next(e);
-											}
-										},
-									);
-								}
-							}
+							};
+							server.middlewares.use(`/${file.filename}`, handler);
 						}
 					},
 
@@ -424,7 +421,6 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 						const tags: HtmlTagDescriptor[] = [];
 
 						if (devOpts.injection === 'shim') {
-							// Shim mode: inject a script that dynamically manages link tags
 							tags.push({
 								tag: 'script',
 								attrs: { type: 'module' },
@@ -432,25 +428,15 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 								injectTo: 'head',
 							});
 						} else {
-							// Transform mode (default): rewrite HTML directly
-							if (injectMode) {
-								// Strip existing icon-only links (preserves apple-touch-icon)
+							if (resolution.hasAnyInjection) {
 								processed = processed.replace(INJECT_ICON_LINK_RE, '');
-								// Build and cache-bust injected tags
-								for (const tag of faviconTags()) {
-									if (tag.attrs && typeof tag.attrs['href'] === 'string') {
-										tag.attrs['href'] = cacheBust(tag.attrs['href']);
-									}
-									tags.push(tag);
-								}
+								for (const tag of faviconTags({ applyCacheBust: true })) tags.push(tag);
 							} else {
-								// Cache-bust existing icon links
 								processed = processed.replace(ICON_LINK_RE, (_match, before, href, after) => {
 									return `${before}${cacheBust(href)}${after}`;
 								});
 							}
 
-							// HMR client (only in transform mode; shim handles its own HMR)
 							if (devOpts.hmr) {
 								tags.push({
 									tag: 'script',
@@ -467,11 +453,8 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					async buildStart() {
 						const I = new Instrumentation();
 						I.start('Generate ICO (serve)');
-						const pngs = await generateSizedPngs(resolvedInput, genOpts);
-						generatedIco = packIco(pngs);
-						if (emitSizesFormat) {
-							generatedPngs = pngs;
-						}
+						// Pre-warm PNGs so the first request is fast.
+						await pngs();
 						I.end('Generate ICO (serve)');
 					},
 
@@ -481,11 +464,9 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 								if (file === resolvedInput) {
 									const I = new Instrumentation();
 									I.start('Regenerate ICO (HMR)');
-									const pngs = await generateSizedPngs(resolvedInput, genOpts);
-									generatedIco = packIco(pngs);
-									if (emitSizesFormat) {
-										generatedPngs = pngs;
-									}
+									generatedPngs = null;
+									cachedInputBuffer = null;
+									await pngs();
 									I.end('Regenerate ICO (HMR)');
 
 									cacheId = Date.now().toString(36);
@@ -513,48 +494,16 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 				I.start('Generate ICO (build)');
 
 				try {
-					const inputBuffer = await readFile(resolvedInput);
-					const pngs = await generateSizedPngs(inputBuffer, genOpts);
-					const icoBuffer = packIco(pngs);
-
-					this.emitFile({
-						type: 'asset',
-						fileName: output,
-						source: icoBuffer,
-					});
-
-					if (sourceOpts.enabled) {
-						this.emitFile({
-							type: 'asset',
-							fileName: sourceOpts.name,
-							source: inputBuffer,
-						});
-					}
-
-					// Per-size files
-					if (emitSizesFormat) {
-						for (const png of pngs) {
-							if (emitPng) {
-								this.emitFile({
-									type: 'asset',
-									fileName: `${outputStem}-${png.size}x${png.size}.png`,
-									source: png.buffer,
-								});
-							}
-							if (emitIco) {
-								this.emitFile({
-									type: 'asset',
-									fileName: `${outputStem}-${png.size}x${png.size}.ico`,
-									source: packIco([png]),
-								});
-							}
-						}
+					for (const file of resolution.files) {
+						const bytes = await produce(file);
+						this.emitFile({ type: 'asset', fileName: file.filename, source: bytes });
 					}
 
 					I.end('Generate ICO (build)');
 
 					if (DEBUG && logger) {
-						logger.info(`Generated ${output}`);
+						const list = resolution.files.map((f) => f.filename).join(', ');
+						logger.info(`Generated: ${list}`);
 					}
 				} catch (error) {
 					this.error(`[svg-to-ico] Failed to generate ICO: ${error}`);
@@ -568,7 +517,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			 */
 			transformIndexHtml(html) {
 				buildTransformIndexHtmlCalled = true;
-				if (!injectMode) return;
+				if (!resolution.hasAnyInjection) return;
 
 				const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
 				return {
@@ -578,7 +527,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			},
 
 			/**
-			 * Surface a warning when `emit.inject` was configured but
+			 * Surface a warning when any spec has `inject: true` but
 			 * `transformIndexHtml` was never called during this build cycle. This
 			 * happens with frameworks (SvelteKit, VitePress build, some Astro
 			 * adapters) that render HTML outside Vite's pipeline, causing the
@@ -592,11 +541,12 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			closeBundle(this: { environment?: { name?: string } }) {
 				const envName = this.environment?.name;
 				if (envName && envName !== 'client') return;
-				if (injectMode && !buildTransformIndexHtmlCalled) {
+				if (resolution.hasAnyInjection && !buildTransformIndexHtmlCalled) {
 					logger?.warn(
-						`[svg-to-ico] inject: '${injectMode}' was requested but transformIndexHtml was never called during build. `
+						`[svg-to-ico] inject was requested but transformIndexHtml was never called during build. `
 							+ `This happens with frameworks (SvelteKit, VitePress build, some Astro adapters) that bypass Vite's HTML pipeline. `
-							+ `Add favicon <link> tags manually to your framework's HTML template or head config — the generated files are still emitted correctly.`,
+							+ `Add favicon <link> tags manually to your framework's HTML template or head config, `
+							+ `or use the bundled \`svg-to-ico inject\` CLI as a postbuild step — the generated files are still emitted correctly.`,
 					);
 				}
 			},
