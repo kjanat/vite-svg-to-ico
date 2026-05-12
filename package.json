@@ -1,7 +1,7 @@
 {
 	"name": "vite-svg-to-ico",
-	"version": "2.2.0",
-	"description": "A Vite plugin that converts SVG files to ICO format during the build process.",
+	"version": "2.3.0",
+	"description": "Vite plugin that converts SVG to ICO during site build.",
 	"keywords": [
 		"vite-plugin",
 		"vite",
@@ -24,6 +24,10 @@
 		},
 		"./package.json": "./package.json"
 	},
+	"imports": {
+		"#vite-svg-to-ico": "./src/index.ts",
+		"#internals/*": "./src/*"
+	},
 	"files": [
 		"dist",
 		"src"
@@ -33,7 +37,7 @@
 		"build": "tsdown",
 		"dev": "tsdown --watch",
 		"fmt": "dprint fmt",
-		"prepack": "bun --bun bd -l error && dprint fmt README.md >/dev/null",
+		"prepack": "bun --bun bd -l error && bunx prettier -w README.md >/dev/null",
 		"postpack": "git restore README.md >/dev/null",
 		"prepublishOnly": "bun test && bun --bun typecheck",
 		"tar": "bun pm pack --quiet | awk 'NF{line=$0} END{print line}'",
@@ -41,26 +45,31 @@
 		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
+		"@kjanat/dreamcli": "^2.1.0",
 		"sharp": "^0.34.5"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/core": "^0.18.2",
-		"@types/bun": "latest",
-		"@typescript/native-preview": "^7.0.0-dev.20260225.1",
-		"dprint": "^0.52.0",
-		"publint": "^0.3.17",
-		"tsdown": "^0.20.3",
-		"typescript": "^5.9.3",
+		"@types/bun": "^1.3.13",
+		"@typescript/native-preview": "^7.0.0-dev.20260512.1",
+		"dprint": "^0.54.0",
+		"publint": "^0.3.20",
+		"tsdown": "^0.22.0",
+		"typescript": "^6.0.3",
 		"unplugin-unused": "^0.5.7"
 	},
 	"peerDependencies": {
 		"vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
 	},
+	"engines": { "node": ">=22.18.0" },
 	"packageManager": "bun@1.3.13",
 	"publishConfig": {
 		"access": "public",
 		"provenance": true,
 		"registry": "https://registry.npmjs.org/",
 		"tag": "latest"
+	},
+	"bin": {
+		"svg-to-ico": "./dist/cli.mjs"
 	}
 }

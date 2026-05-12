@@ -1,14 +1,17 @@
 import { defineConfig } from 'tsdown';
 
 export default defineConfig({
-	entry: 'src/index.ts',
-	dts: true,
+	entry: ['src/index.ts', 'src/cli.ts'],
+	dts: { entry: 'src/index.ts' },
 	exports: {
+		bin: { 'svg-to-ico': './src/cli.ts' },
 		customExports(exports) {
 			const entry = exports['.'];
 			if (typeof entry === 'string') {
 				exports['.'] = { bun: './src/index.ts', default: entry };
 			}
+			// CLI is consumed via the `bin` field, not as a runtime import.
+			delete exports['./cli'];
 			return exports;
 		},
 	},

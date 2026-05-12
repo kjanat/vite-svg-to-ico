@@ -35,7 +35,9 @@ export interface FaviconTagOptions {
  */
 export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 	const tags: HtmlTagDescriptor[] = [];
-	const base = opts.base ?? '/';
+	const baseRaw = opts.base ?? '/';
+	const base = baseRaw.endsWith('/') ? baseRaw : `${baseRaw}/`;
+	const withBase = (name: string) => `${base}${name.replace(/^\/+/, '')}`;
 
 	// 1. ICO — always
 	tags.push({
@@ -43,7 +45,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 		attrs: {
 			rel: 'icon',
 			type: 'image/x-icon',
-			href: `${base}${opts.output}`,
+			href: withBase(opts.output),
 			sizes: opts.sizes.map((s) => `${s}x${s}`).join(' '),
 		},
 		injectTo: 'head',
@@ -56,7 +58,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 			attrs: {
 				rel: 'icon',
 				type: 'image/svg+xml',
-				href: `${base}${opts.sourceName}`,
+				href: withBase(opts.sourceName),
 				sizes: 'any',
 			},
 			injectTo: 'head',
@@ -72,7 +74,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 					rel: 'icon',
 					type: `image/${file.format}`,
 					sizes: `${file.size}x${file.size}`,
-					href: `${base}${file.name}`,
+					href: withBase(file.name),
 				},
 				injectTo: 'head',
 			});
@@ -88,3 +90,42 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
  * Intentionally does **not** match `apple-touch-icon` so those are preserved.
  */
 export const INJECT_ICON_LINK_RE = /\s*<link\b[^>]*\brel\s*=\s*["'](?:shortcut\s+)?icon["'][^>]*>\s*/gi;
+
+/** Escape double quotes in an attribute value so it can be safely emitted inside `"..."`. */
+function escapeAttr(v: string): string {
+	return v.replace(/"/g, '&quot;');
+}
+
+/** Render a Vite {@link HtmlTagDescriptor} as an HTML string. */
+export function renderTag(tag: HtmlTagDescriptor): string {
+	const attrs = tag.attrs
+		? Object.entries(tag.attrs)
+			.filter(([, v]) => v !== false && v !== undefined && v !== null)
+			.map(([k, v]) => v === true ? k : `${k}="${escapeAttr(String(v))}"`)
+			.join(' ')
+		: '';
+	const open = attrs ? `<${tag.tag} ${attrs}>` : `<${tag.tag}>`;
+	if (tag.children == null) return open;
+	const children = typeof tag.children === 'string'
+		? tag.children
+		: tag.children.map(renderTag).join('');
+	return `${open}${children}</${tag.tag}>`;
+}
+
+/**
+ * Inject favicon `<link>` tags into an HTML document string.
+ *
+ * Strips any existing `icon` / `shortcut icon` links (preserving `apple-touch-icon`)
+ * and inserts the new tags before `</head>`. If no `</head>` is present, tags are
+ * appended at the end of the document.
+ */
+export function injectTagsIntoHtml(html: string, tags: HtmlTagDescriptor[]): string {
+	const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
+	const rendered = tags.map(renderTag).join('\n    ');
+	const headCloseRe = /<\/head>/i;
+	const match = cleaned.match(headCloseRe);
+	if (match) {
+		return cleaned.replace(headCloseRe, `    ${rendered}\n  ${match[0]}`);
+	}
+	return `${cleaned}\n${rendered}`;
+}

@@ -1,6 +1,6 @@
 # vite-svg-to-ico
 
-[![NPM Version](https://img.shields.io/npm/v/vite-svg-to-ico?logo=npm&labelColor=CB3837&color=black)](https://www.npmjs.com/package/vite-svg-to-ico)
+[![NPM Version](https://img.shields.io/npm/v/vite-svg-to-ico?logo=npm&labelColor=CB3837&color=black)](https://npm.im/package/vite-svg-to-ico)
 
 Vite plugin that converts an image file into a multi-size `.ico` favicon at
 build time.\
@@ -117,6 +117,46 @@ When `emit.inject` is enabled, existing `<link rel="icon">` and
 `<link rel="shortcut icon">` tags are stripped from the HTML to prevent
 duplicates. `apple-touch-icon` tags are preserved.
 
+### Framework integration (SvelteKit, VitePress, Astro adapters)
+
+SvelteKit, VitePress, and some Astro adapters render their HTML
+**outside** Vite's pipeline, so `transformIndexHtml` never fires and
+`emit.inject` produces no tags. The build plugin detects this
+and emits a warning, but the fix lives outside the plugin.
+
+Two options:
+
+**1. Configure tags at the framework level.** Use SvelteKit's
+`app.html`, VitePress's `head` config, or Astro's `<Head>` slot. The
+plugin still emits the ICO/SVG files — only the tag injection moves to
+the framework.
+
+**2. Use the bundled `svg-to-ico` CLI as a `postbuild` step.** The CLI
+rewrites HTML files on disk after the framework's adapter finishes
+writing them. Useful when you want a single source of truth for the
+icon sizes and don't want to duplicate them in framework config.
+
+```json
+{
+	"scripts": {
+		"build": "vite build && svg-to-ico inject build/index.html build/404.html --sizes 16 --sizes 32 --sizes 48 --source favicon.svg"
+	}
+}
+```
+
+The CLI is **not Vite-specific** — it ships with this package as a
+convenience but works against any HTML and any image source. Install
+the package globally (`bun i -g vite-svg-to-ico`, `npm i -g vite-svg-to-ico`) to
+get the `svg-to-ico` command on your PATH for use in non-Vite
+pipelines, one-off CI scripts, or other framework toolchains:
+
+```sh
+svg-to-ico generate src/icon.svg --out-dir build --sizes 16 --sizes 32 --sizes 48 --emit-source --emit-sizes png
+svg-to-ico inject build/index.html --sizes 16 --sizes 32 --sizes 48 --source icon.svg
+```
+
+Run `svg-to-ico --help` for the full surface.
+
 ### Override sharp options
 
 ```ts
@@ -216,5 +256,3 @@ Set `DEBUG=vite-svg-to-ico` to enable timing instrumentation.
 ## License
 
 [MIT](https://github.com/kjanat/vite-svg-to-ico/blob/master/LICENSE)
-
-<!--markdownlint-disable-file no-hard-tabs-->
