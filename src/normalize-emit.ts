@@ -1,7 +1,7 @@
-import { basename } from 'node:path';
+import { basename, parse } from 'node:path';
 import { isLegacyEmit } from './types.ts';
 import type { EmitSpec, IconSize, IcoSpec, NormalizedEmit, PluginOptions, PngSpec, SvgSpec } from './types.ts';
-import type { LegacyEmitOptions } from './types.ts';
+import type { LegacyEmitOptions } from './types.ts'; // v2 compat
 
 /**
  * Resolve {@link PluginOptions.emit} (either v3 {@link EmitSpec}[] or v2
@@ -140,12 +140,11 @@ function legacyToSpecs(legacy: LegacyEmitOptions, defaults: Defaults): EmitSpec[
 	}
 
 	if (wantsPerSizeIco) {
-		// Strip `.ico` if present; otherwise strip any trailing extension so a
-		// non-`.ico` configured output (e.g. `output: 'icon.png'`) never embeds
-		// its suffix into per-size filenames like `icon.png-16x16.ico`.
-		const outputStem = defaults.defaultIcoFilename.toLowerCase().endsWith('.ico')
-			? defaults.defaultIcoFilename.slice(0, -4)
-			: defaults.defaultIcoFilename.replace(/\.[^.]+$/, '');
+		// `path.parse` strips any trailing extension from the filename only —
+		// parent directory components (which may legitimately contain dots,
+		// e.g. `icons.v1/favicon.ico`) are preserved as `dir`.
+		const { dir, name } = parse(defaults.defaultIcoFilename);
+		const outputStem = dir ? `${dir}/${name}` : name;
 		for (const size of defaults.defaultSizes) {
 			const ico: IcoSpec = {
 				format: 'ico',
