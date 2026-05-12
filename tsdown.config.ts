@@ -4,7 +4,7 @@ export default defineConfig({
 	entry: ['src/index.ts', 'src/cli.ts'],
 	dts: { entry: 'src/index.ts' },
 	exports: {
-		bin: { 'svg-to-ico': './src/cli.ts' },
+		bin: { 'svg-to-ico': 'src/cli.ts' },
 		customExports(exports) {
 			const entry = exports['.'];
 			if (typeof entry === 'string') {
@@ -18,7 +18,7 @@ export default defineConfig({
 	clean: true,
 	target: 'esnext',
 	unused: true,
-	onSuccess: 'bun fmt package.json',
+	onSuccess: 'bunx --bun npm pkg fix',
 	unbundle: true,
 	minify: 'dce-only',
 	publint: true,

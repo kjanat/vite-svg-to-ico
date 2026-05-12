@@ -6,9 +6,9 @@
 		"build": "vite build"
 	},
 	"dependencies": {
-		"vite-svg-to-ico": "PLACEHOLDER_PLUGIN_PATH"
+		"vite-svg-to-ico": "file:../../.."
 	},
 	"devDependencies": {
-		"vite": "^7.0.0"
+		"vite": "catalog:"
 	}
 }

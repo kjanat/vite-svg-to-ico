@@ -1,66 +1,50 @@
 /**
- * Smoke test: scaffold a real Vite consumer project in a tmp dir, install
- * this repo as `vite-svg-to-ico` via `file:`, run `bun run build`, then
- * assert the build emitted the expected files and injected the expected
- * `<link>` tags.
+ * Smoke test: build the workspace-member fixture and assert it emitted the
+ * expected files + injected the expected `<link>` tags.
  *
- * This exercises the path real consumers take — resolving the plugin
- * through `node_modules` (Node loader → `dist/index.mjs`), not the
- * direct-source import path that the rest of `tests/` uses. The PNG
- * size-cap regression (1–256 ICO constraint leaking onto PngSpec) was
- * caught here, not in the unit suite.
+ * The fixture (`tests/smoke/fixture`) is a Bun workspace member — its
+ * `vite-svg-to-ico` dep resolves through `workspace:*`, and `vite` through
+ * the root `catalog`. So this exercises the path real consumers take
+ * (Node loader → `dist/index.mjs`) without needing tmpdir/copy/rewrite
+ * gymnastics in the driver.
  *
- * Skipped automatically when `dist/index.mjs` is missing. CI builds the
- * plugin before invoking `bun test` so the smoke test fires.
+ * Auto-skipped when `dist/index.mjs` is absent so a fresh clone running
+ * `bun test` doesn't fail. CI builds the plugin before invoking `bun test`.
  */
 
 import { $ } from 'bun';
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { cp, readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { existsSync, rmSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..');
 const FIXTURE = resolve(import.meta.dirname, 'smoke/fixture');
+const FIXTURE_DIST = join(FIXTURE, 'dist');
 const DIST_ENTRY = join(REPO_ROOT, 'dist/index.mjs');
 
-// Smoke depends on the built dist — skip when it's not present (e.g. fresh
-// clone before `bun run build`). CI runs `bun run build && bun test` so it
-// always fires there.
 const hasDist = existsSync(DIST_ENTRY);
 
 describe.skipIf(!hasDist)('smoke: real Vite consumer build', () => {
-	let tmpRoot: string;
 	let buildExitCode: number;
 	let html: string;
 	let emittedFiles: Set<string>;
 
 	beforeAll(async () => {
-		tmpRoot = mkdtempSync(join(tmpdir(), 'vsi-smoke-'));
-		await cp(FIXTURE, tmpRoot, { recursive: true });
+		// Clean any prior build so the assertions reflect the current run.
+		rmSync(FIXTURE_DIST, { recursive: true, force: true });
 
-		// Rewrite the placeholder dep spec to an absolute file: path pointing
-		// at this repo. file: pulls in the plugin's own `package.json` exports,
-		// so Vite resolves `vite-svg-to-ico` through the same path real users do.
-		const pkgPath = join(tmpRoot, 'package.json');
-		const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
-		pkg.dependencies['vite-svg-to-ico'] = `file:${REPO_ROOT}`;
-		await Bun.write(pkgPath, JSON.stringify(pkg, null, '\t'));
-
-		// Use the same Bun that's running the test; mute the install + build logs
-		// so a successful run is silent and a failure is the only thing visible.
-		await $`bun install`.cwd(tmpRoot).quiet();
-		const build = await $`bun run build`.cwd(tmpRoot).quiet().nothrow();
+		const build = await $`bun run build`.cwd(FIXTURE).quiet().nothrow();
 		buildExitCode = build.exitCode;
 
-		const distDir = join(tmpRoot, 'dist');
-		html = await readFile(join(distDir, 'index.html'), 'utf8');
-		emittedFiles = new Set(await Array.fromAsync(new Bun.Glob('*').scan(distDir)));
+		html = await readFile(join(FIXTURE_DIST, 'index.html'), 'utf8');
+		emittedFiles = new Set(await Array.fromAsync(new Bun.Glob('*').scan(FIXTURE_DIST)));
 	}, 60_000);
 
 	afterAll(() => {
-		if (tmpRoot) rmSync(tmpRoot, { recursive: true, force: true });
+		// Leave the fixture's `node_modules` alone (workspace-managed) but
+		// remove the build output so subsequent runs start clean.
+		rmSync(FIXTURE_DIST, { recursive: true, force: true });
 	});
 
 	it('build exits 0', () => {

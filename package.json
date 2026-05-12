@@ -2,6 +2,9 @@
 	"name": "vite-svg-to-ico",
 	"version": "3.0.0",
 	"description": "Vite plugin that converts SVG to ICO during site build.",
+	"workspaces": [
+		"tests/smoke/*"
+	],
 	"keywords": [
 		"vite-plugin",
 		"vite",
@@ -62,7 +65,9 @@
 	"peerDependencies": {
 		"vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
 	},
-	"engines": { "node": ">=22.18.0" },
+	"engines": {
+		"node": ">=22.18.0"
+	},
 	"packageManager": "bun@1.3.13",
 	"publishConfig": {
 		"access": "public",
@@ -71,6 +76,9 @@
 		"tag": "latest"
 	},
 	"bin": {
-		"svg-to-ico": "./dist/cli.mjs"
+		"svg-to-ico": "dist/cli.mjs"
+	},
+	"catalog": {
+		"vite": "latest"
 	}
 }
