@@ -166,6 +166,10 @@ describe('v3 EmitSpec normalization', () => {
 		expect(() => svgToIco({ input: FIXTURE, emit: invalid<PluginOptions['emit']>(null) })).toThrow(
 			'Invalid `emit` value',
 		);
+		// BigInt would crash `JSON.stringify` and mask our error; `inspect` handles it.
+		expect(() => svgToIco({ input: FIXTURE, emit: invalid<PluginOptions['emit']>(1n) })).toThrow(
+			'Invalid `emit` value',
+		);
 	});
 
 	it('rejects spec sizes out of range', () => {

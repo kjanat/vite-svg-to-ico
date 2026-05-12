@@ -1,4 +1,5 @@
 import { basename, parse } from 'node:path';
+import { inspect } from 'node:util';
 import { isLegacyEmit } from './types.ts';
 import type { EmitSpec, IconSize, IcoSpec, NormalizedEmit, PluginOptions, PngSpec, SvgSpec } from './types.ts';
 import type { LegacyEmitOptions } from './types.ts'; // v2 compat
@@ -47,12 +48,13 @@ export function normalizeEmit(opts: PluginOptions, defaultSizes: IconSize[]): No
 	}
 
 	// Unreachable in TypeScript, but JS consumers can pass shapes (`emit: 42`,
-	// `emit: null`, etc.) that fail both `Array.isArray` and `isLegacyEmit`.
-	// Fail loudly with the offending value instead of silently emitting nothing.
+	// `emit: null`, `emit: 1n`, etc.) that fail both `Array.isArray` and
+	// `isLegacyEmit`. Use `inspect` over `JSON.stringify` here so BigInt,
+	// circular refs, and other unserializable values produce a readable repr
+	// instead of throwing inside the Error constructor and masking our message.
+	const safeEmitRepr = inspect(opts.emit, { depth: 2, breakLength: Infinity });
 	throw new Error(
-		`[svg-to-ico] Invalid \`emit\` value: expected an EmitSpec[] or LegacyEmitOptions object, received ${
-			JSON.stringify(opts.emit) ?? String(opts.emit)
-		}.`,
+		`[svg-to-ico] Invalid \`emit\` value: expected an EmitSpec[] or LegacyEmitOptions object, received ${safeEmitRepr}.`,
 	);
 }
 
