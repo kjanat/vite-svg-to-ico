@@ -30,6 +30,14 @@ export interface ResolvedFile {
 	source: ResolvedFileSource;
 }
 
+/**
+ * How a {@link ResolvedFile}'s bytes are produced. Discriminated by `kind`:
+ *
+ * - `combined-ico` — pack multiple PNG sizes into one ICO container.
+ * - `single-ico` — wrap exactly one PNG size in a single-entry ICO.
+ * - `png` — emit the PNG for one size as-is.
+ * - `source-copy` — copy the original input file (SVG inputs only).
+ */
 export type ResolvedFileSource =
 	| { kind: 'combined-ico'; sizes: IconSize[] }
 	| { kind: 'single-ico'; size: IconSize }

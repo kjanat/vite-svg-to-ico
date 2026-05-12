@@ -1,5 +1,11 @@
 import { env } from 'node:process';
 
+/**
+ * Gate for verbose plugin instrumentation. Set the `DEBUG` env var to
+ * `vite-svg-to-ico` to enable per-build timing logs from
+ * {@link Instrumentation}; any other value (including unset) keeps the
+ * timers silent and zero-overhead.
+ */
 export const DEBUG = env['DEBUG'] === 'vite-svg-to-ico';
 
 /**

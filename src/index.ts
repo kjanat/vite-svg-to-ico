@@ -36,6 +36,12 @@ import {
 } from './types.ts';
 import { isLegacyEmit } from './types.ts';
 
+/**
+ * Public type surface re-exported from `./types.ts` (plus `GenerateOptions`
+ * from `./ico.ts`). Each type is documented at its definition site; this
+ * manifest is the package's external import target for consumers that need
+ * to spell out option/spec shapes.
+ */
 export type {
 	DevInjection,
 	DevOptions,
