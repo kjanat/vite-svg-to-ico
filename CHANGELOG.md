@@ -21,8 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `isLegacyEmit()`.
 - New internal modules: `src/normalize-emit.ts` (v2→v3 shim + defaults),
   `src/resolve-specs.ts` (pure spec→files+injections resolver).
-- Per-spec sizes validation (1–256, non-empty for PNG) with clear errors
-  pointing at the failing `emit[N]`.
+- Per-spec sizes validation: ICO/top-level capped at 1–256
+  (8-bit width/height field in the ICO container);
+  `PngSpec.sizes` capped at 1–4096 since standalone PNGs aren't bound
+  by ICO's limit (covers Android 192, PWA 512, retina 1024).
+  Empty `sizes` is rejected for both ICO and PNG.
+  Validation errors point at the failing `emit[N]`.
+- Named `svgToIco` export alongside the existing default export.
+  Both forms now work — pick whichever fits your codebase's import style.
+- `PngSpec.inject.sizes` validated as a subset of the spec's own `sizes`
+  at config time;
+  previously an out-of-set value was silently dropped at injection time.
 
 ### Changed
 
@@ -40,6 +49,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The "inject was requested but `transformIndexHtml` never fired" warning
   is now spec-aware: triggered whenever any spec has `inject: true`,
   regardless of v2 vs v3 input shape.
+
+### Fixed
+
+- Invalid runtime `emit` values (e.g. `emit: 42`, `emit: null`, `emit: 1n`
+  from JS consumers) now throw a clear error with the offending value
+  serialised via `util.inspect`,
+  instead of silently producing an empty spec list
+  (or, for `BigInt`, crashing inside the Error constructor).
+- Per-size ICO filenames in the legacy `emit.sizes: 'ico' | 'both'` path
+  preserve dots in parent directory components.
+  A configured `output: 'icons.v1/favicon'` previously collapsed to `icons`
+  because the extension-stripping regex matched across `/`;
+  now derived via `path.parse` which strips only the basename's extension.
 
 ### Migration guide
 
