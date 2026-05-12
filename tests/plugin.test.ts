@@ -1,17 +1,43 @@
 import { describe, expect, it } from 'bun:test';
 import { resolve } from 'node:path';
+import type { Logger, Plugin, ResolvedConfig } from 'vite';
 
 import svgToIco from '#vite-svg-to-ico';
+import type { IconSize, PluginOptions } from '#vite-svg-to-ico';
+import { invalid, unwrap } from './_helpers.ts';
 
 const FIXTURE = resolve(import.meta.dirname, 'fixtures/test.svg');
+
+/** Minimal subset of `ResolvedConfig` the plugin's `configResolved` hook reads. */
+interface ConfigMock {
+	root: string;
+	base: string;
+	logger: Logger;
+}
+
+/**
+ * Invoke a plugin's `configResolved` hook directly. Vite's hook signature is
+ * `ObjectHook<fn>` (either the function or `{ handler: fn }`), so we narrow
+ * both forms here. The `invalid()` cast on the mock is the single boundary
+ * between our 3-field test fixture and Vite's full `ResolvedConfig` type.
+ */
+function callConfigResolved(plugin: Plugin, mock: ConfigMock): void {
+	const hook = plugin.configResolved;
+	if (!hook) throw new Error('plugin has no configResolved hook');
+	const objectHook = typeof hook === 'function' ? hook : hook.handler;
+	// Plugin's configResolved doesn't reference `this`, so we drop Rollup's
+	// MinimalPluginContextWithoutEnvironment binding via a free-function cast.
+	const fn = invalid<(config: ResolvedConfig) => void | Promise<void>>(objectHook);
+	fn(invalid<ResolvedConfig>(mock));
+}
 
 describe('svgToIco plugin factory', () => {
 	it('returns an array of 3 plugins', () => {
 		const plugins = svgToIco({ input: FIXTURE });
 		expect(plugins).toHaveLength(3);
-		expect(plugins[0]!.name).toBe('svg-to-ico:config');
-		expect(plugins[1]!.name).toBe('svg-to-ico:serve');
-		expect(plugins[2]!.name).toBe('svg-to-ico:build');
+		expect(unwrap(plugins[0]).name).toBe('svg-to-ico:config');
+		expect(unwrap(plugins[1]).name).toBe('svg-to-ico:serve');
+		expect(unwrap(plugins[2]).name).toBe('svg-to-ico:build');
 	});
 
 	it('uses default options', () => {
@@ -79,9 +105,9 @@ describe('v3 EmitSpec normalization', () => {
 		};
 	}
 
-	function runConfig(opts: Parameters<typeof svgToIco>[0], logger: any) {
+	function runConfig(opts: PluginOptions, logger: Logger): Plugin[] {
 		const plugins = svgToIco(opts);
-		(plugins[0] as any).configResolved({ root: '/tmp', base: '/', logger });
+		callConfigResolved(unwrap(plugins[0]), { root: '/tmp', base: '/', logger });
 		return plugins;
 	}
 
@@ -133,26 +159,39 @@ describe('v3 EmitSpec normalization', () => {
 
 	it('rejects spec sizes out of range', () => {
 		const { logger } = captureLogger();
-		expect(() => runConfig({ input: FIXTURE, emit: [{ format: 'ico', sizes: [0, 500] as any }] }, logger)).toThrow(
-			'Must be integers 1–256',
-		);
+		expect(() =>
+			runConfig(
+				{ input: FIXTURE, emit: [{ format: 'ico', sizes: invalid<IconSize[]>([0, 500]) }] },
+				logger,
+			)
+		).toThrow('Must be integers 1–256');
 	});
 
 	it('rejects unknown format', () => {
 		const { logger } = captureLogger();
-		expect(() => runConfig({ input: FIXTURE, emit: [{ format: 'bmp' as any, sizes: [16] as any }] }, logger)).toThrow(
-			'invalid',
-		);
+		expect(() =>
+			runConfig(
+				{ input: FIXTURE, emit: invalid<PluginOptions['emit']>([{ format: 'bmp', sizes: [16] }]) },
+				logger,
+			)
+		).toThrow('invalid');
 	});
 });
 
 describe('config plugin validation', () => {
-	// configResolved is called by Vite with a resolved config; we simulate it
-	function runConfigResolved(opts: Parameters<typeof svgToIco>[0]) {
+	// configResolved is called by Vite with a resolved config; we simulate it.
+	function runConfigResolved(opts: PluginOptions): void {
 		const plugins = svgToIco(opts);
-		const configPlugin = plugins[0];
-		const hook = (configPlugin as any).configResolved;
-		hook({ root: '/tmp', logger: { info: () => {} } });
+		const stubLogger: Logger = {
+			info: () => {},
+			warn: () => {},
+			warnOnce: () => {},
+			error: () => {},
+			clearScreen: () => {},
+			hasErrorLogged: () => false,
+			hasWarned: false,
+		};
+		callConfigResolved(unwrap(plugins[0]), { root: '/tmp', base: '/', logger: stubLogger });
 	}
 
 	it('throws on empty input', () => {
@@ -164,7 +203,7 @@ describe('config plugin validation', () => {
 	});
 
 	it('throws on empty sizes array', () => {
-		expect(() => runConfigResolved({ input: 'icon.svg', sizes: [] as any })).toThrow(
+		expect(() => runConfigResolved({ input: 'icon.svg', sizes: invalid<IconSize[]>([]) })).toThrow(
 			'`sizes` must contain at least one value',
 		);
 	});
@@ -176,15 +215,13 @@ describe('config plugin validation', () => {
 	});
 
 	it('throws on invalid emitSizes string', () => {
-		expect(() => runConfigResolved({ input: 'icon.svg', emit: { sizes: 'bad' as any } })).toThrow(
-			'Invalid emitSizes value',
-		);
+		expect(() => runConfigResolved({ input: 'icon.svg', emit: invalid<PluginOptions['emit']>({ sizes: 'bad' }) }))
+			.toThrow('Invalid emitSizes value');
 	});
 
 	it('throws on invalid inject string', () => {
-		expect(() => runConfigResolved({ input: 'icon.svg', emit: { inject: 'bad' as any } })).toThrow(
-			'Invalid inject value',
-		);
+		expect(() => runConfigResolved({ input: 'icon.svg', emit: invalid<PluginOptions['emit']>({ inject: 'bad' }) }))
+			.toThrow('Invalid inject value');
 	});
 
 	it('passes with valid options', () => {
@@ -192,9 +229,8 @@ describe('config plugin validation', () => {
 	});
 
 	it('throws on invalid dev.injection string', () => {
-		expect(() => runConfigResolved({ input: 'icon.svg', dev: { injection: 'bad' as any } })).toThrow(
-			'Invalid dev.injection value',
-		);
+		expect(() => runConfigResolved({ input: 'icon.svg', dev: invalid<PluginOptions['dev']>({ injection: 'bad' }) }))
+			.toThrow('Invalid dev.injection value');
 	});
 });
 
@@ -236,10 +272,24 @@ describe('build plugin: inject-no-op warning', () => {
 		return { logger, warns };
 	}
 
-	function getBuildPlugin(opts: Parameters<typeof svgToIco>[0], logger: ReturnType<typeof mockLogger>['logger']) {
+	// Test-side projection of the build plugin: Vite's Plugin type wraps each
+	// hook as `ObjectHook<fn> = fn | { handler: fn }`, but our plugin defines
+	// them as plain method shorthands. The cast localizes that knowledge to
+	// this single helper.
+	interface BuildPluginUnderTest {
+		// `this: unknown` accepts both `build.closeBundle()` (this is the plugin
+		// object) and `build.closeBundle.call({ environment: ... })` (this is the
+		// env mock). The plugin reads `this.environment?.name` internally.
+		closeBundle: (this: unknown) => void;
+		transformIndexHtml: (html: string) => unknown;
+		buildStart: (this: { emitFile: (asset: unknown) => void; error: (msg: string) => never }) => Promise<void>;
+	}
+
+	function getBuildPlugin(opts: PluginOptions, logger: Logger): BuildPluginUnderTest {
 		const plugins = svgToIco(opts);
-		(plugins[0] as any).configResolved({ root: '/tmp', base: '/', logger });
-		return plugins.find((p) => p.name === 'svg-to-ico:build') as any;
+		callConfigResolved(unwrap(plugins[0]), { root: '/tmp', base: '/', logger });
+		const build = unwrap(plugins.find((p) => p.name === 'svg-to-ico:build'));
+		return invalid<BuildPluginUnderTest>(build);
 	}
 
 	it('warns when inject is set but transformIndexHtml never fires', () => {

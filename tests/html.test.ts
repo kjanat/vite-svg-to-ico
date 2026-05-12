@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { buildFaviconTags, INJECT_ICON_LINK_RE } from '#internals/html.ts';
+import { unwrap } from './_helpers.ts';
 
 describe('buildFaviconTags', () => {
 	it('minimal mode: returns ICO tag only for non-SVG input', () => {
@@ -13,9 +14,10 @@ describe('buildFaviconTags', () => {
 			mode: 'minimal',
 		});
 		expect(tags).toHaveLength(1);
-		expect(tags[0]!.attrs!['type']).toBe('image/x-icon');
-		expect(tags[0]!.attrs!['href']).toBe('/favicon.ico');
-		expect(tags[0]!.attrs!['sizes']).toBe('16x16 32x32');
+		const attrs = unwrap(unwrap(tags[0]).attrs);
+		expect(attrs['type']).toBe('image/x-icon');
+		expect(attrs['href']).toBe('/favicon.ico');
+		expect(attrs['sizes']).toBe('16x16 32x32');
 	});
 
 	it('minimal mode: includes SVG tag when SVG input + source emitted', () => {
@@ -28,8 +30,9 @@ describe('buildFaviconTags', () => {
 			mode: 'minimal',
 		});
 		expect(tags).toHaveLength(2);
-		expect(tags[1]!.attrs!['type']).toBe('image/svg+xml');
-		expect(tags[1]!.attrs!['href']).toBe('/icon.svg');
+		const svgAttrs = unwrap(unwrap(tags[1]).attrs);
+		expect(svgAttrs['type']).toBe('image/svg+xml');
+		expect(svgAttrs['href']).toBe('/icon.svg');
 	});
 
 	it('minimal mode: no SVG tag when source not emitted', () => {
@@ -59,8 +62,8 @@ describe('buildFaviconTags', () => {
 		});
 		// 1 ICO + 2 per-size
 		expect(tags).toHaveLength(3);
-		expect(tags[1]!.attrs!['sizes']).toBe('16x16');
-		expect(tags[2]!.attrs!['sizes']).toBe('32x32');
+		expect(unwrap(unwrap(tags[1]).attrs)['sizes']).toBe('16x16');
+		expect(unwrap(unwrap(tags[2]).attrs)['sizes']).toBe('32x32');
 	});
 
 	it('full mode without sizedFiles: no per-size tags', () => {

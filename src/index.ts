@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 
-import type { HtmlTagDescriptor, Plugin } from 'vite';
+import type { Connect, HtmlTagDescriptor, Plugin } from 'vite';
 
 import { INJECT_ICON_LINK_RE } from './html.ts';
 import type { GenerateOptions, SizedPng } from './ico.ts';
@@ -396,19 +396,17 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					configureServer(server: import('vite').ViteDevServer) {
 						// Register one middleware per resolved file.
 						for (const file of resolution.files) {
-							server.middlewares.use(
-								`/${file.filename}`,
-								async (_req: any, res: any, next: any) => {
-									try {
-										const bytes = await produce(file);
-										res.setHeader('Content-Type', contentType(file.mime));
-										res.setHeader('Cache-Control', 'no-cache');
-										res.end(bytes);
-									} catch (e: any) {
-										next(e);
-									}
-								},
-							);
+							const handler: Connect.NextHandleFunction = async (_req, res, next) => {
+								try {
+									const bytes = await produce(file);
+									res.setHeader('Content-Type', contentType(file.mime));
+									res.setHeader('Cache-Control', 'no-cache');
+									res.end(bytes);
+								} catch (e) {
+									next(e instanceof Error ? e : new Error(String(e)));
+								}
+							};
+							server.middlewares.use(`/${file.filename}`, handler);
 						}
 					},
 

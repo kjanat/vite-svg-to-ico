@@ -72,13 +72,11 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
 				const sizes = spec.sizes ?? [];
 				const filename = spec.filename ?? 'favicon.ico';
 				for (const s of sizes) sizeSet.add(s);
-				files.push({
-					filename,
-					mime: 'x-icon',
-					source: sizes.length === 1
-						? { kind: 'single-ico', size: sizes[0]! }
-						: { kind: 'combined-ico', sizes },
-				});
+				const [only] = sizes;
+				const source: ResolvedFileSource = sizes.length === 1 && only !== undefined
+					? { kind: 'single-ico', size: only }
+					: { kind: 'combined-ico', sizes };
+				files.push({ filename, mime: 'x-icon', source });
 				if (spec.inject) {
 					injections.push({
 						tag: 'link',

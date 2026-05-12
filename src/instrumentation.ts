@@ -1,6 +1,6 @@
-const DEBUG = process.env.DEBUG === 'vite-svg-to-ico';
+import { env } from 'node:process';
 
-export { DEBUG };
+export const DEBUG = env['DEBUG'] === 'vite-svg-to-ico';
 
 /**
  * Debug-only timing instrumentation.
