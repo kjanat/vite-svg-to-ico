@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-05-12
+
 ### Added
 
 - `autofix.ci` workflow for automatic dprint formatting on push and PRs
+- Vite 8 peer dependency support (`vite: ^6.0.0 || ^7.0.0 || ^8.0.0`); installs no longer rejected on Vite 8 projects
 
 ### Changed
 
@@ -118,6 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite 6 and 7 peer dependency compatibility.
 - Full TypeScript type exports (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.2.0...v1.0.0

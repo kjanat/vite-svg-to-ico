@@ -2,7 +2,8 @@
 
 [![NPM Version](https://img.shields.io/npm/v/vite-svg-to-ico?logo=npm&labelColor=CB3837&color=black)](https://www.npmjs.com/package/vite-svg-to-ico)
 
-Vite plugin that converts an image file into a multi-size `.ico` favicon at build time.\
+Vite plugin that converts an image file into a multi-size `.ico` favicon at
+build time.\
 Serves the generated ICO during development with HMR support.
 
 ## Install
@@ -66,7 +67,8 @@ svgToIco({
 
 ### Non-SVG input
 
-PNG, JPEG, WebP, AVIF, GIF, and TIFF sources are supported — the plugin detects format from the file extension:
+PNG, JPEG, WebP, AVIF, GIF, and TIFF sources are supported — the plugin detects
+format from the file extension:
 
 ```ts
 svgToIco({
@@ -83,7 +85,8 @@ svgToIco({
 });
 ```
 
-`emit.sizes` also accepts `'png'`, `'ico'`, or `'both'` to control the per-size file format:
+`emit.sizes` also accepts `'png'`, `'ico'`, or `'both'` to control the per-size
+file format:
 
 ```ts
 svgToIco({
@@ -110,7 +113,9 @@ svgToIco({
 });
 ```
 
-When `emit.inject` is enabled, existing `<link rel="icon">` and `<link rel="shortcut icon">` tags are stripped from the HTML to prevent duplicates. `apple-touch-icon` tags are preserved.
+When `emit.inject` is enabled, existing `<link rel="icon">` and
+`<link rel="shortcut icon">` tags are stripped from the HTML to prevent
+duplicates. `apple-touch-icon` tags are preserved.
 
 ### Override sharp options
 
@@ -124,7 +129,11 @@ svgToIco({
 });
 ```
 
-The `sharp.resize` and `sharp.png` objects are merged over sensible defaults — you only need to specify what you want to change. See the [sharp resize](https://sharp.pixelplumbing.com/api-resize) and [sharp PNG](https://sharp.pixelplumbing.com/api-output#png) docs for all available options.
+The `sharp.resize` and `sharp.png` objects are merged over sensible defaults —
+you only need to specify what you want to change. See the
+[sharp resize](https://sharp.pixelplumbing.com/api-resize) and
+[sharp PNG](https://sharp.pixelplumbing.com/api-output#png) docs for all
+available options.
 
 ### Dev server control
 
@@ -193,8 +202,12 @@ svgToIco({ input: 'src/icon.svg', dev: { hmr: false } });
 
 ## How it works
 
-- **Build**: reads the source image, rasterizes it to PNG at each size via `sharp`, packs the PNGs into an ICO container (PNG-in-ICO format), and emits it as a Rollup asset.
-- **Dev**: pre-generates the ICO on server start and serves it via middleware. When the source file changes, the ICO is regenerated and the browser favicon is swapped in-place via HMR (no page reload).
+- **Build**: reads the source image, rasterizes it to PNG at each size via
+  `sharp`, packs the PNGs into an ICO container (PNG-in-ICO format), and emits
+  it as a Rollup asset.
+- **Dev**: pre-generates the ICO on server start and serves it via middleware.
+  When the source file changes, the ICO is regenerated and the browser favicon
+  is swapped in-place via HMR (no page reload).
 
 ## Debug
 
