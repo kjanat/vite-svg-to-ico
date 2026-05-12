@@ -108,7 +108,8 @@ export type {
 export default function svgToIco(opts: PluginOptions): Plugin[] {
 	let generatedIco: Buffer | null = null;
 	let generatedPngs: SizedPng[] | null = null;
-	let logger: { info: (msg: string) => void } | null = null;
+	let logger: import('vite').Logger | null = null;
+	let buildTransformIndexHtmlCalled = false;
 
 	const {
 		input,
@@ -507,6 +508,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			enforce: 'post',
 
 			async buildStart() {
+				buildTransformIndexHtmlCalled = false;
 				const I = new Instrumentation();
 				I.start('Generate ICO (build)');
 
@@ -559,7 +561,13 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 				}
 			},
 
+			/**
+			 * Strip existing icon `<link>` tags from the HTML and append the
+			 * configured favicon tag set. Records that the hook fired so
+			 * {@link closeBundle} can detect frameworks that bypass this pipeline.
+			 */
 			transformIndexHtml(html) {
+				buildTransformIndexHtmlCalled = true;
 				if (!injectMode) return;
 
 				const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
@@ -567,6 +575,30 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					html: cleaned,
 					tags: faviconTags({ base: resolvedBase }),
 				};
+			},
+
+			/**
+			 * Surface a warning when `emit.inject` was configured but
+			 * `transformIndexHtml` was never called during this build cycle. This
+			 * happens with frameworks (SvelteKit, VitePress build, some Astro
+			 * adapters) that render HTML outside Vite's pipeline, causing the
+			 * `<link>` injection to silently no-op while files are still emitted.
+			 *
+			 * Multi-environment Vite builds (SvelteKit drives client + ssr) call
+			 * `closeBundle` per environment; only the client environment ever
+			 * triggers `transformIndexHtml`, so the warning is scoped there to
+			 * avoid duplicate output.
+			 */
+			closeBundle(this: { environment?: { name?: string } }) {
+				const envName = this.environment?.name;
+				if (envName && envName !== 'client') return;
+				if (injectMode && !buildTransformIndexHtmlCalled) {
+					logger?.warn(
+						`[svg-to-ico] inject: '${injectMode}' was requested but transformIndexHtml was never called during build. `
+							+ `This happens with frameworks (SvelteKit, VitePress build, some Astro adapters) that bypass Vite's HTML pipeline. `
+							+ `Add favicon <link> tags manually to your framework's HTML template or head config — the generated files are still emitted correctly.`,
+					);
+				}
 			},
 		},
 	] satisfies Plugin[];
