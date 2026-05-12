@@ -146,7 +146,7 @@ icon sizes and don't want to duplicate them in framework config.
 
 The CLI is **not Vite-specific** — it ships with this package as a
 convenience but works against any HTML and any image source. Install
-the package globally (`bun add -g vite-svg-to-ico`, `npm i -g …`) to
+the package globally (`bun add -g vite-svg-to-ico`, `npm i -g vite-svg-to-ico`) to
 get the `svg-to-ico` command on your PATH for use in non-Vite
 pipelines, one-off CI scripts, or other framework toolchains:
 

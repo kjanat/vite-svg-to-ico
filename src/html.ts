@@ -35,7 +35,9 @@ export interface FaviconTagOptions {
  */
 export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 	const tags: HtmlTagDescriptor[] = [];
-	const base = opts.base ?? '/';
+	const baseRaw = opts.base ?? '/';
+	const base = baseRaw.endsWith('/') ? baseRaw : `${baseRaw}/`;
+	const withBase = (name: string) => `${base}${name.replace(/^\/+/, '')}`;
 
 	// 1. ICO — always
 	tags.push({
@@ -43,7 +45,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 		attrs: {
 			rel: 'icon',
 			type: 'image/x-icon',
-			href: `${base}${opts.output}`,
+			href: withBase(opts.output),
 			sizes: opts.sizes.map((s) => `${s}x${s}`).join(' '),
 		},
 		injectTo: 'head',
@@ -56,7 +58,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 			attrs: {
 				rel: 'icon',
 				type: 'image/svg+xml',
-				href: `${base}${opts.sourceName}`,
+				href: withBase(opts.sourceName),
 				sizes: 'any',
 			},
 			injectTo: 'head',
@@ -72,7 +74,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
 					rel: 'icon',
 					type: `image/${file.format}`,
 					sizes: `${file.size}x${file.size}`,
-					href: `${base}${file.name}`,
+					href: withBase(file.name),
 				},
 				injectTo: 'head',
 			});
@@ -120,8 +122,10 @@ export function renderTag(tag: HtmlTagDescriptor): string {
 export function injectTagsIntoHtml(html: string, tags: HtmlTagDescriptor[]): string {
 	const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
 	const rendered = tags.map(renderTag).join('\n    ');
-	if (cleaned.includes('</head>')) {
-		return cleaned.replace('</head>', `    ${rendered}\n  </head>`);
+	const headCloseRe = /<\/head>/i;
+	const match = cleaned.match(headCloseRe);
+	if (match) {
+		return cleaned.replace(headCloseRe, `    ${rendered}\n  ${match[0]}`);
 	}
 	return `${cleaned}\n${rendered}`;
 }

@@ -71,14 +71,22 @@ export const generate = command('generate')
 
 		await mkdir(outDir, { recursive: true });
 
+		async function writeAt(targetPath: string, data: Buffer | string, label: string) {
+			await mkdir(dirname(targetPath), { recursive: true });
+			await writeFile(targetPath, data);
+			out.log(label);
+		}
+
 		const icoPath = resolve(outDir, flags.output);
-		await writeFile(icoPath, icoBuffer);
-		out.log(`Wrote ${icoPath} (${icoBuffer.length} B, ${sizes.length} size${sizes.length === 1 ? '' : 's'})`);
+		await writeAt(
+			icoPath,
+			icoBuffer,
+			`Wrote ${icoPath} (${icoBuffer.length} B, ${sizes.length} size${sizes.length === 1 ? '' : 's'})`,
+		);
 
 		if (flags['emit-source']) {
 			const sourcePath = resolve(outDir, basename(inputPath));
-			await writeFile(sourcePath, inputBuffer);
-			out.log(`Wrote ${sourcePath} (source)`);
+			await writeAt(sourcePath, inputBuffer, `Wrote ${sourcePath} (source)`);
 		}
 
 		const emitSizes = flags['emit-sizes'];
@@ -86,13 +94,11 @@ export const generate = command('generate')
 			for (const png of pngs) {
 				if (emitSizes === 'png' || emitSizes === 'both') {
 					const p = resolve(outDir, `${outputStem}-${png.size}x${png.size}.png`);
-					await writeFile(p, png.buffer);
-					out.log(`Wrote ${p}`);
+					await writeAt(p, png.buffer, `Wrote ${p}`);
 				}
 				if (emitSizes === 'ico' || emitSizes === 'both') {
 					const p = resolve(outDir, `${outputStem}-${png.size}x${png.size}.ico`);
-					await writeFile(p, packIco([png]));
-					out.log(`Wrote ${p}`);
+					await writeAt(p, packIco([png]), `Wrote ${p}`);
 				}
 			}
 		}
@@ -137,9 +143,12 @@ export const inject = command('inject')
 			let original: string;
 			try {
 				original = await readFile(abs, 'utf8');
-			} catch {
-				out.error(`inject: "${rel}" — file not found at ${abs}, skipping`);
-				continue;
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+					out.error(`inject: "${rel}" — file not found at ${abs}, skipping`);
+					continue;
+				}
+				throw error;
 			}
 			const next = injectTagsIntoHtml(original, tags);
 			if (next !== original) {
