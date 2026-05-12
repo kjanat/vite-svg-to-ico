@@ -104,6 +104,33 @@ describe('v3 EmitSpec normalization', () => {
 		);
 	});
 
+	it('rejects IcoSpec with empty sizes', () => {
+		const { logger } = captureLogger();
+		expect(() => runConfig({ input: FIXTURE, emit: [{ format: 'ico', sizes: [] }] }, logger)).toThrow(
+			'requires `sizes`',
+		);
+	});
+
+	it('rejects PngSpec inject.sizes not subset of spec.sizes', () => {
+		const { logger } = captureLogger();
+		expect(() =>
+			runConfig(
+				{ input: FIXTURE, emit: [{ format: 'png', sizes: [16, 32], inject: { sizes: [64] } }] },
+				logger,
+			)
+		).toThrow('subset');
+	});
+
+	it('accepts PngSpec inject.sizes that is a valid subset', () => {
+		const { logger } = captureLogger();
+		expect(() =>
+			runConfig(
+				{ input: FIXTURE, emit: [{ format: 'png', sizes: [16, 32, 64], inject: { sizes: [32] } }] },
+				logger,
+			)
+		).not.toThrow();
+	});
+
 	it('rejects spec sizes out of range', () => {
 		const { logger } = captureLogger();
 		expect(() => runConfig({ input: FIXTURE, emit: [{ format: 'ico', sizes: [0, 500] as any }] }, logger)).toThrow(

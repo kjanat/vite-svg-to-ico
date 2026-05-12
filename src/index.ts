@@ -322,6 +322,9 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 						);
 					}
 					if (spec.format === 'ico' && spec.sizes) {
+						if (spec.sizes.length === 0) {
+							throw new Error(`[svg-to-ico] emit[${i}] (ico) requires \`sizes\` with at least one value.`);
+						}
 						const bad = spec.sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
 						if (bad.length > 0) {
 							throw new Error(`[svg-to-ico] emit[${i}].sizes invalid: ${bad.join(', ')}. Must be integers 1–256.`);
@@ -334,6 +337,16 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 						const bad = spec.sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
 						if (bad.length > 0) {
 							throw new Error(`[svg-to-ico] emit[${i}].sizes invalid: ${bad.join(', ')}. Must be integers 1–256.`);
+						}
+						if (typeof spec.inject === 'object' && spec.inject !== null && spec.inject.sizes) {
+							const allowed = new Set(spec.sizes);
+							const bad = spec.inject.sizes.filter((s) => !allowed.has(s));
+							if (bad.length > 0) {
+								throw new Error(
+									`[svg-to-ico] emit[${i}].inject.sizes contains values not in spec.sizes: ${bad.join(', ')}. `
+										+ `Must be a subset of [${spec.sizes.join(', ')}].`,
+								);
+							}
 						}
 					}
 				}

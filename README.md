@@ -80,6 +80,7 @@ Common patterns:
 
 ```ts
 // Just a combined favicon.ico (matches the default — `emit` may be omitted).
+// `filename` is omitted, so the spec falls back to `opts.output ?? 'favicon.ico'`.
 emit: [{ format: 'ico', sizes: [16, 32, 48] }];
 
 // Multiple separate ICOs for legacy tooling that expects favicon-NxN.ico.

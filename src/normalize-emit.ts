@@ -134,7 +134,12 @@ function legacyToSpecs(legacy: LegacyEmitOptions, defaults: Defaults): EmitSpec[
 	}
 
 	if (wantsPerSizeIco) {
-		const outputStem = defaults.defaultIcoFilename.replace(/\.ico$/i, '');
+		// Strip `.ico` if present; otherwise strip any trailing extension so a
+		// non-`.ico` configured output (e.g. `output: 'icon.png'`) never embeds
+		// its suffix into per-size filenames like `icon.png-16x16.ico`.
+		const outputStem = defaults.defaultIcoFilename.toLowerCase().endsWith('.ico')
+			? defaults.defaultIcoFilename.slice(0, -4)
+			: defaults.defaultIcoFilename.replace(/\.[^.]+$/, '');
 		for (const size of defaults.defaultSizes) {
 			const ico: IcoSpec = {
 				format: 'ico',
