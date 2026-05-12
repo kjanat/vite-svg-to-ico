@@ -42,6 +42,7 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
+import { cwd } from 'node:process';
 
 import { arg, cli, CLIError, command, flag } from '@kjanat/dreamcli';
 
@@ -64,7 +65,16 @@ const sizesFlag = () =>
 	}))
 		.alias('s')
 		.default([16, 32, 48])
-		.describe('Pixel sizes (integers 1–256). Pass repeated: `-s 16 -s 32 -s 48`.');
+		.describe('Pixel sizes (integers 1–256). Pass repeated: `-s16 -s32 -s48`.');
+
+/** Resolve a raw string to an absolute filesystem path (relative to CWD). */
+const toAbsolutePath = (raw: unknown): string => resolve(String(raw));
+
+/** Reusable absolute-path arg: parsing happens at the schema layer. */
+const pathArg = () => arg.custom<string>(toAbsolutePath);
+
+/** Reusable absolute-path flag: parsing happens at the schema layer. */
+const pathFlag = () => flag.custom<string>(toAbsolutePath);
 
 export const generate = command('generate')
 	.description(
@@ -74,8 +84,9 @@ export const generate = command('generate')
 	)
 	.arg(
 		'input',
-		arg.string().describe(
-			'Path to source image. Sharp-supported formats: .svg, .svgz, .png, .jpg/.jpeg, .webp, .avif, .gif, .tif/.tiff.',
+		pathArg().describe(
+			'Path to source image (resolved to absolute). Sharp-supported formats: .svg, .svgz, .png, '
+				+ '.jpg/.jpeg, .webp, .avif, .gif, .tif/.tiff.',
 		),
 	)
 	.flag(
@@ -87,7 +98,10 @@ export const generate = command('generate')
 	.flag('sizes', sizesFlag())
 	.flag(
 		'out-dir',
-		flag.string().alias('d').default('.').describe('Directory to write outputs into. Created if missing.'),
+		pathFlag().alias('d').default(cwd()).describe(
+			'Directory to write outputs into (resolved to absolute). Created if missing. '
+				+ 'Defaults to the current working directory.',
+		),
 	)
 	.flag(
 		'emit-sizes',
@@ -102,30 +116,31 @@ export const generate = command('generate')
 		),
 	)
 	.flag(
-		'no-optimize',
-		flag.boolean().default(false).describe(
-			'Skip max PNG compression. Faster builds, larger files. (Default: compression level 9 + adaptive filtering.)',
+		'optimize',
+		flag.boolean().default(true).describe(
+			'Apply max PNG compression (level 9 + adaptive filtering). Disable with `--optimize=false` for '
+				+ 'faster builds at the cost of larger files.',
 		),
 	)
-	.example('svg-to-ico generate src/icon.svg', 'Write favicon.ico (16/32/48) to the current directory.')
+	.example('generate src/icon.svg', 'Write favicon.ico (16/32/48) to the current directory.')
 	.example(
-		'svg-to-ico generate src/icon.svg -d build -s 16 -s 32 -s 48 --emit-sizes png --emit-source',
+		'generate src/icon.svg -d build -s16 -s32 -s48 --emit-sizes png --emit-source',
 		'Generate ICO + per-size PNGs + copy of source into build/.',
 	)
 	.example(
-		'svg-to-ico generate src/icon.png -s 64 -s 128 -s 256 -o icons/favicon.ico',
+		'generate src/icon.png -s64 -s128 -s256 -o icons/favicon.ico',
 		'PNG input, custom sizes, nested output path.',
 	)
 	.action(async ({ args, flags, out }) => {
 		const sizes = flags.sizes;
-		const inputPath = resolve(args.input);
-		const outDir = resolve(flags['out-dir']);
+		const inputPath = args.input;
+		const outDir = flags['out-dir'];
 		const outputStem = flags.output.replace(/\.ico$/i, '');
 
 		const inputBuffer = await readFile(inputPath);
 		const pngs = await generateSizedPngs(inputBuffer, {
 			sizes,
-			optimize: !flags['no-optimize'],
+			optimize: flags.optimize,
 		});
 		const icoBuffer = packIco(pngs);
 
@@ -211,15 +226,15 @@ export const inject = command('inject')
 		),
 	)
 	.example(
-		'svg-to-ico inject build/index.html',
+		'inject build/index.html',
 		'Inject default favicon.ico tag (16/32/48) into a single file.',
 	)
 	.example(
-		'svg-to-ico inject build/index.html build/404.html -s 16 -s 32 -s 48 --source favicon.svg',
+		'inject build/index.html build/404.html -s16 -s32 -s48 --source favicon.svg',
 		'Multi-file rewrite, also injects SVG source `<link>`.',
 	)
 	.example(
-		'svg-to-ico inject dist/index.html --base /repo/ -m full',
+		'inject dist/index.html --base /repo/ -m full',
 		'Full tag set under a subpath base (e.g. GitHub Pages project site).',
 	)
 	.action(async ({ args, flags, out }) => {
