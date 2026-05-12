@@ -117,3 +117,49 @@ describe('dev option', () => {
 		expect(() => svgToIco({ input: FIXTURE, dev: { hmr: false } })).not.toThrow();
 	});
 });
+
+describe('build plugin: inject-no-op warning', () => {
+	function mockLogger() {
+		const warns: string[] = [];
+		const logger = {
+			info: () => {},
+			warn: (msg: string) => warns.push(msg),
+			warnOnce: (msg: string) => warns.push(msg),
+			error: () => {},
+			clearScreen: () => {},
+			hasErrorLogged: () => false,
+			hasWarned: false,
+		};
+		return { logger, warns };
+	}
+
+	function getBuildPlugin(opts: Parameters<typeof svgToIco>[0], logger: ReturnType<typeof mockLogger>['logger']) {
+		const plugins = svgToIco(opts);
+		(plugins[0] as any).configResolved({ root: '/tmp', base: '/', logger });
+		return plugins.find((p) => p.name === 'svg-to-ico:build') as any;
+	}
+
+	it('warns when inject is set but transformIndexHtml never fires', () => {
+		const { logger, warns } = mockLogger();
+		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
+		build.closeBundle();
+		expect(warns).toHaveLength(1);
+		expect(warns[0]).toContain("inject: 'minimal' was requested");
+		expect(warns[0]).toContain('transformIndexHtml was never called');
+	});
+
+	it('does not warn when transformIndexHtml fires', () => {
+		const { logger, warns } = mockLogger();
+		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'full' } }, logger);
+		build.transformIndexHtml('<html><head></head><body></body></html>');
+		build.closeBundle();
+		expect(warns).toHaveLength(0);
+	});
+
+	it('does not warn when inject is disabled', () => {
+		const { logger, warns } = mockLogger();
+		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: false } }, logger);
+		build.closeBundle();
+		expect(warns).toHaveLength(0);
+	});
+});

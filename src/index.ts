@@ -108,7 +108,8 @@ export type {
 export default function svgToIco(opts: PluginOptions): Plugin[] {
 	let generatedIco: Buffer | null = null;
 	let generatedPngs: SizedPng[] | null = null;
-	let logger: { info: (msg: string) => void } | null = null;
+	let logger: import('vite').Logger | null = null;
+	let buildTransformIndexHtmlCalled = false;
 
 	const {
 		input,
@@ -560,6 +561,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			},
 
 			transformIndexHtml(html) {
+				buildTransformIndexHtmlCalled = true;
 				if (!injectMode) return;
 
 				const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
@@ -567,6 +569,16 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					html: cleaned,
 					tags: faviconTags({ base: resolvedBase }),
 				};
+			},
+
+			closeBundle() {
+				if (injectMode && !buildTransformIndexHtmlCalled) {
+					logger?.warn(
+						`[svg-to-ico] inject: '${injectMode}' was requested but transformIndexHtml was never called during build. `
+							+ `This happens with frameworks (SvelteKit, VitePress build, some Astro adapters) that bypass Vite's HTML pipeline. `
+							+ `Add favicon <link> tags manually to your framework's HTML template or head config — the generated files are still emitted correctly.`,
+					);
+				}
 			},
 		},
 	] satisfies Plugin[];
