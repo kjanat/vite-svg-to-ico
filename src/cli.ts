@@ -2,9 +2,9 @@
 /**
  * # svg-to-ico
  *
- * CLI companion to the `vite-svg-to-ico` Vite plugin. Generates multi-size ICO
- * favicons from any sharp-supported source image, and/or injects favicon
- * `<link>` tags into existing HTML files.
+ * CLI companion to the `vite-svg-to-ico` Vite plugin.
+ * Generates multi-size ICO favicons from any sharp-supported source image,
+ * and/or injects favicon `<link>` tags into existing HTML files.
  *
  * ## Why
  *
@@ -49,18 +49,22 @@ import { buildFaviconTags, injectTagsIntoHtml } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
 import { INJECT_MODES, type InjectMode } from './types.ts';
 
-/** Validate each size is an integer in [1, 256] (ICO spec) and that the list is non-empty. */
-function validateSizes(sizes: number[]): number[] {
-	if (sizes.length === 0) {
-		throw new CLIError('`--sizes` must contain at least one value', { code: 'INVALID_ARGUMENT' });
-	}
-	for (const n of sizes) {
+/**
+ * Build the `--sizes` flag: an array of per-element-validated integers, each
+ * restricted to `[1, 256]` per the ICO spec. Parsing and range-check live
+ * inside the flag definition so the action handler can trust the value.
+ */
+const sizesFlag = () =>
+	flag.array(flag.custom<number>((raw) => {
+		const n = typeof raw === 'number' ? raw : Number(raw);
 		if (!Number.isInteger(n) || n < 1 || n > 256) {
-			throw new CLIError(`Invalid size: ${n}. Must be an integer 1–256.`, { code: 'INVALID_ARGUMENT' });
+			throw new CLIError(`Invalid size: ${String(raw)}. Must be an integer 1–256.`, { code: 'INVALID_SIZE' });
 		}
-	}
-	return sizes;
-}
+		return n;
+	}))
+		.alias('s')
+		.default([16, 32, 48])
+		.describe('Pixel sizes (integers 1–256). Pass repeated: `-s 16 -s 32 -s 48`.');
 
 export const generate = command('generate')
 	.description(
@@ -80,12 +84,7 @@ export const generate = command('generate')
 			'Filename for the combined ICO (relative to --out-dir). May include subdirectories; they are created as needed.',
 		),
 	)
-	.flag(
-		'sizes',
-		flag.array(flag.number()).alias('s').default([16, 32, 48]).describe(
-			'Pixel sizes to rasterize (integers 1–256). Pass repeated: `-s 16 -s 32 -s 48`.',
-		),
-	)
+	.flag('sizes', sizesFlag())
 	.flag(
 		'out-dir',
 		flag.string().alias('d').default('.').describe('Directory to write outputs into. Created if missing.'),
@@ -118,7 +117,7 @@ export const generate = command('generate')
 		'PNG input, custom sizes, nested output path.',
 	)
 	.action(async ({ args, flags, out }) => {
-		const sizes = validateSizes(flags.sizes);
+		const sizes = flags.sizes;
 		const inputPath = resolve(args.input);
 		const outDir = resolve(flags['out-dir']);
 		const outputStem = flags.output.replace(/\.ico$/i, '');
@@ -184,13 +183,7 @@ export const inject = command('inject')
 			"ICO filename referenced in the injected `<link>` (matches `generate`'s --output).",
 		),
 	)
-	.flag(
-		'sizes',
-		flag.array(flag.number()).alias('s').default([16, 32, 48]).describe(
-			'Pixel sizes baked into the `sizes="…"` attribute (must match the ICO\'s actual contents). '
-				+ 'Pass repeated: `-s 16 -s 32 -s 48`.',
-		),
-	)
+	.flag('sizes', sizesFlag())
 	.flag(
 		'mode',
 		flag.enum(INJECT_MODES).alias('m').default('minimal').describe(
@@ -232,9 +225,9 @@ export const inject = command('inject')
 	.action(async ({ args, flags, out }) => {
 		const files = args.files;
 		if (files.length === 0) {
-			throw new CLIError('At least one HTML file path is required', { code: 'INVALID_ARGUMENT' });
+			throw new CLIError('At least one HTML file path is required', { code: 'MISSING_FILES' });
 		}
-		const sizes = validateSizes(flags.sizes);
+		const sizes = flags.sizes;
 		const mode = flags.mode as InjectMode;
 		const sourceName = flags.source;
 		const tags = buildFaviconTags({
