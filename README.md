@@ -22,9 +22,7 @@ import { defineConfig } from 'vite';
 import svgToIco from 'vite-svg-to-ico';
 
 export default defineConfig({
-	plugins: [
-		svgToIco({ input: 'src/icon.svg' }),
-	],
+  plugins: [svgToIco({ input: 'src/icon.svg' })],
 });
 ```
 
@@ -32,9 +30,9 @@ export default defineConfig({
 
 ```ts
 svgToIco({
-	input: 'src/logo.svg',
-	output: 'icon.ico',
-	sizes: [16, 24, 32, 48, 64, 128, 256],
+  input: 'src/logo.svg',
+  output: 'icon.ico',
+  sizes: [16, 24, 32, 48, 64, 128, 256],
 });
 ```
 
@@ -42,8 +40,8 @@ svgToIco({
 
 ```ts
 svgToIco({
-	input: 'src/icon.svg',
-	sharp: { optimize: false },
+  input: 'src/icon.svg',
+  sharp: { optimize: false },
 });
 ```
 
@@ -56,12 +54,12 @@ Pick the formats and sizes you want — combine freely.
 
 ```ts
 svgToIco({
-	input: 'src/icon.svg',
-	emit: [
-		{ format: 'ico', sizes: [16, 32, 48], inject: true },
-		{ format: 'png', sizes: [192, 512], inject: { sizes: [192] } },
-		{ format: 'svg', filename: 'logo.svg', inject: true },
-	],
+  input: 'src/icon.svg',
+  emit: [
+    { format: 'ico', sizes: [16, 32, 48], inject: true },
+    { format: 'png', sizes: [192, 512], inject: { sizes: [192] } },
+    { format: 'svg', filename: 'logo.svg', inject: true },
+  ],
 });
 ```
 
@@ -85,15 +83,15 @@ emit: [{ format: 'ico', sizes: [16, 32, 48] }];
 
 // Multiple separate ICOs for legacy tooling that expects favicon-NxN.ico.
 emit: [
-	{ format: 'ico', sizes: [16, 32, 48] },
-	{ format: 'ico', sizes: [16], filename: 'favicon-16x16.ico' },
-	{ format: 'ico', sizes: [32], filename: 'favicon-32x32.ico' },
+  { format: 'ico', sizes: [16, 32, 48] },
+  { format: 'ico', sizes: [16], filename: 'favicon-16x16.ico' },
+  { format: 'ico', sizes: [32], filename: 'favicon-32x32.ico' },
 ];
 
 // ICO + SVG source for modern browsers (SVG takes precedence when supported).
 emit: [
-	{ format: 'ico', sizes: [16, 32, 48], inject: true },
-	{ format: 'svg', inject: true },
+  { format: 'ico', sizes: [16, 32, 48], inject: true },
+  { format: 'svg', inject: true },
 ];
 ```
 
@@ -109,8 +107,8 @@ format from the file extension:
 
 ```ts
 svgToIco({
-	input: 'src/logo.png',
-	emit: [{ format: 'ico', sizes: [16, 32, 48] }],
+  input: 'src/logo.png',
+  emit: [{ format: 'ico', sizes: [16, 32, 48] }],
 });
 ```
 
@@ -151,9 +149,9 @@ icon sizes and don't want to duplicate them in framework config.
 
 ```json
 {
-	"scripts": {
-		"build": "vite build && svg-to-ico inject build/index.html build/404.html --sizes 16 --sizes 32 --sizes 48 --source favicon.svg"
-	}
+  "scripts": {
+    "build": "vite build && svg-to-ico inject build/index.html build/404.html --sizes 16 --sizes 32 --sizes 48 --source favicon.svg"
+  }
 }
 ```
 
@@ -174,11 +172,11 @@ Run `svg-to-ico --help` for the full surface.
 
 ```ts
 svgToIco({
-	input: 'src/pixel-icon.svg',
-	sharp: {
-		resize: { kernel: 'nearest' }, // crisp pixel art scaling
-		png: { palette: true, colours: 64 }, // indexed color output
-	},
+  input: 'src/pixel-icon.svg',
+  sharp: {
+    resize: { kernel: 'nearest' }, // crisp pixel art scaling
+    png: { palette: true, colours: 64 }, // indexed color output
+  },
 });
 ```
 
@@ -208,7 +206,7 @@ svgToIco({ input: 'src/icon.svg', dev: { hmr: false } });
 | `input`  | `string`                          | **(required)**        | Path to source image (SVG, PNG, JPEG, WebP, etc.).                                |
 | `sizes`  | `number \| number[]`              | `[16, 32, 48]`        | Default sizes used when an `IcoSpec` omits its own `sizes`.                       |
 | `emit`   | `EmitSpec[] \| LegacyEmitOptions` | `[{ format: 'ico' }]` | What to emit and inject. Array of specs (v3) or legacy object shape (deprecated). |
-| `output` | `string`                          | `'favicon.ico'`       | *Deprecated.* Fallback ICO filename when an `IcoSpec` omits `filename`.           |
+| `output` | `string`                          | `'favicon.ico'`       | _Deprecated_. Fallback ICO filename when an `IcoSpec` omits `filename`.           |
 | `sharp`  | `SharpOptions`                    | `{}`                  | Sharp image processing options.                                                   |
 | `dev`    | `boolean \| DevOptions`           | `true`                | Control dev-server behavior.                                                      |
 

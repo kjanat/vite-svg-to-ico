@@ -47,10 +47,10 @@ Old (v2):
 
 ```ts
 svgToIco({
-	input: 'src/icon.svg',
-	output: 'favicon.ico',
-	sizes: [16, 32, 48],
-	emit: { source: true, sizes: 'both', inject: 'full' },
+  input: 'src/icon.svg',
+  output: 'favicon.ico',
+  sizes: [16, 32, 48],
+  emit: { source: true, sizes: 'both', inject: 'full' },
 });
 ```
 
@@ -58,15 +58,15 @@ New (v3 equivalent):
 
 ```ts
 svgToIco({
-	input: 'src/icon.svg',
-	emit: [
-		{ format: 'ico', sizes: [16, 32, 48], filename: 'favicon.ico', inject: true },
-		{ format: 'ico', sizes: [16], filename: 'favicon-16x16.ico', inject: true },
-		{ format: 'ico', sizes: [32], filename: 'favicon-32x32.ico', inject: true },
-		{ format: 'ico', sizes: [48], filename: 'favicon-48x48.ico', inject: true },
-		{ format: 'png', sizes: [16, 32, 48], inject: true },
-		{ format: 'svg', inject: true },
-	],
+  input: 'src/icon.svg',
+  emit: [
+    { format: 'ico', sizes: [16, 32, 48], filename: 'favicon.ico', inject: true },
+    { format: 'ico', sizes: [16], filename: 'favicon-16x16.ico', inject: true },
+    { format: 'ico', sizes: [32], filename: 'favicon-32x32.ico', inject: true },
+    { format: 'ico', sizes: [48], filename: 'favicon-48x48.ico', inject: true },
+    { format: 'png', sizes: [16, 32, 48], inject: true },
+    { format: 'svg', inject: true },
+  ],
 });
 ```
 
@@ -75,12 +75,12 @@ Or, to use the new flexibility that v2 couldn't express
 
 ```ts
 svgToIco({
-	input: 'src/icon.svg',
-	emit: [
-		{ format: 'ico', sizes: [16, 32, 48], inject: true },
-		{ format: 'png', sizes: [192], inject: true },
-		{ format: 'svg', inject: true },
-	],
+  input: 'src/icon.svg',
+  emit: [
+    { format: 'ico', sizes: [16, 32, 48], inject: true },
+    { format: 'png', sizes: [192], inject: true },
+    { format: 'svg', inject: true },
+  ],
 });
 ```
 
