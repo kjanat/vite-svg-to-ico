@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `vite-svg-to-ico` CLI binary. Two subcommands: `generate` (ICO + per-size files from any sharp-supported source image) and `inject` (rewrite `<link rel="icon">` tags into existing HTML files). Built on `@kjanat/dreamcli`. Use as a `"postbuild"` script in `package.json` for frameworks that render HTML outside Vite's pipeline (SvelteKit, VitePress, Astro adapters), where the plugin's `transformIndexHtml` never fires. ([#1](https://github.com/kjanat/vite-svg-to-ico/issues/1))
+- `renderTag` and `injectTagsIntoHtml` helpers in `src/html.ts` (internal), shared between the plugin and CLI.
+
+### Changed
+
+- Package internal import resolution moved from `tsconfig` path aliases to Node-spec `package.json` `imports` field (`#vite-svg-to-ico` for the public entry, `#internals/*` for source-relative imports).
+
 ## [2.2.0] - 2026-05-12
 
 ### Added

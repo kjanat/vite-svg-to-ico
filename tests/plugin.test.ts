@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { resolve } from 'node:path';
 
-import svgToIco from '$/index.ts';
+import svgToIco from '#vite-svg-to-ico';
 
 const FIXTURE = resolve(import.meta.dirname, 'fixtures/test.svg');
 

@@ -24,9 +24,7 @@
 		// Some stricter flags
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"noPropertyAccessFromIndexSignature": false,
-
-		"paths": { "$/*": ["./src/*"] }
+		"noPropertyAccessFromIndexSignature": false
 	},
 	"exclude": ["dist"]
 }

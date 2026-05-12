@@ -2,8 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { generateIco, generateSizedPngs, packIco } from '$/ico.ts';
-import type { SizedPng } from '$/ico.ts';
+import { generateIco, generateSizedPngs, packIco } from '#internals/ico.ts';
+import type { SizedPng } from '#internals/ico.ts';
 
 const FIXTURE = resolve(import.meta.dirname, 'fixtures/test.svg');
 

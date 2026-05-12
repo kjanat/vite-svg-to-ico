@@ -117,6 +117,43 @@ When `emit.inject` is enabled, existing `<link rel="icon">` and
 `<link rel="shortcut icon">` tags are stripped from the HTML to prevent
 duplicates. `apple-touch-icon` tags are preserved.
 
+### Framework integration (SvelteKit, VitePress, Astro adapters)
+
+SvelteKit, VitePress, and some Astro adapters render their HTML
+**outside** Vite's pipeline, so `transformIndexHtml` never fires and
+`emit.inject` silently produces no tags. The build plugin detects this
+and emits a warning, but the fix lives outside the plugin.
+
+Two options:
+
+**1. Configure tags at the framework level.** Use SvelteKit's
+`app.html`, VitePress's `head` config, or Astro's `<Head>` slot. The
+plugin still emits the ICO/SVG files — only the tag injection moves to
+the framework.
+
+**2. Use the `vite-svg-to-ico` CLI as a `postbuild` step.** The CLI
+rewrites HTML files on disk after the framework's adapter finishes
+writing them. Useful when you want a single source of truth for the
+icon sizes and don't want to duplicate them in framework config.
+
+```json
+{
+	"scripts": {
+		"build": "vite build && vite-svg-to-ico inject build/index.html build/404.html --sizes 16,32,48 --source favicon.svg"
+	}
+}
+```
+
+The CLI also exposes `generate` for producing the ICO/per-size files
+from any sharp-supported source image — useful in non-Vite pipelines:
+
+```sh
+vite-svg-to-ico generate src/icon.svg --out-dir build --sizes 16,32,48 --emit-source --emit-sizes png
+vite-svg-to-ico inject build/index.html --sizes 16,32,48 --source icon.svg
+```
+
+Run `vite-svg-to-ico --help` for the full surface.
+
 ### Override sharp options
 
 ```ts
