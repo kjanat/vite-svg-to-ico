@@ -41,6 +41,7 @@
 		"prepublishOnly": "bun test && bun --bun typecheck",
 		"tar": "bun pm pack --quiet | awk 'NF{line=$0} END{print line}'",
 		"test": "bun test",
+		"test:smoke": "bun run build && bun test tests/smoke.test.ts",
 		"typecheck": "tsgo --noEmit",
 		"lint": "bunx -p @biomejs/biome biome lint"
 	},

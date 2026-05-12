@@ -1,0 +1,14 @@
+{
+	"name": "vsi-smoke-fixture",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "vite build"
+	},
+	"dependencies": {
+		"vite-svg-to-ico": "PLACEHOLDER_PLUGIN_PATH"
+	},
+	"devDependencies": {
+		"vite": "^7.0.0"
+	}
+}
