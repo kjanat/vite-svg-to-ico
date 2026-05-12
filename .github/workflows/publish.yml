@@ -20,7 +20,7 @@ jobs:
         run: bun pm version from-git --allow-same-version --no-git-tag-version
 
       - id: meta
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const { readFile } = await import('node:fs/promises')
