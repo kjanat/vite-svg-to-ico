@@ -2,13 +2,7 @@
 	"name": "vsi-smoke-fixture",
 	"private": true,
 	"type": "module",
-	"scripts": {
-		"build": "vite build"
-	},
-	"dependencies": {
-		"vite-svg-to-ico": "file:../../.."
-	},
-	"devDependencies": {
-		"vite": "catalog:"
-	}
+	"scripts": { "build": "vite build" },
+	"dependencies": { "vite-svg-to-ico": "link:vite-svg-to-ico" },
+	"devDependencies": { "vite": "latest" }
 }

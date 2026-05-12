@@ -11,10 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
+
       - run: bun install --frozen-lockfile
+
+      - run: bun --bun bd
+      - run: bun link
+      - run: bun --cwd=tests/smoke/fixture install
+
+      - run: bun test
+
       - run: bun run typecheck
       - run: bun run lint
-      # Build dist so the smoke test (which resolves through Node loader
-      # → dist/index.mjs, the path real consumers take) actually fires.
-      - run: bun run build
-      - run: bun test
