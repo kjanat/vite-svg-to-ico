@@ -163,6 +163,23 @@ describe('build plugin: inject-no-op warning', () => {
 		expect(warns).toHaveLength(0);
 	});
 
+	it('does not warn when called in a non-client Vite environment (e.g. SvelteKit ssr)', () => {
+		const { logger, warns } = mockLogger();
+		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
+		// Simulate Vite 6+ Environment API: closeBundle fires per environment;
+		// SSR-side firing must not duplicate the warning.
+		build.closeBundle.call({ environment: { name: 'ssr' } });
+		expect(warns).toHaveLength(0);
+	});
+
+	it('warns once in client env when called for both client and ssr', () => {
+		const { logger, warns } = mockLogger();
+		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);
+		build.closeBundle.call({ environment: { name: 'client' } });
+		build.closeBundle.call({ environment: { name: 'ssr' } });
+		expect(warns).toHaveLength(1);
+	});
+
 	it('resets transformIndexHtml-called flag between build cycles (watch mode)', async () => {
 		const { logger, warns } = mockLogger();
 		const build = getBuildPlugin({ input: FIXTURE, emit: { inject: 'minimal' } }, logger);

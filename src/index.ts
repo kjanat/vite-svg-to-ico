@@ -583,8 +583,15 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 			 * happens with frameworks (SvelteKit, VitePress build, some Astro
 			 * adapters) that render HTML outside Vite's pipeline, causing the
 			 * `<link>` injection to silently no-op while files are still emitted.
+			 *
+			 * Multi-environment Vite builds (SvelteKit drives client + ssr) call
+			 * `closeBundle` per environment; only the client environment ever
+			 * triggers `transformIndexHtml`, so the warning is scoped there to
+			 * avoid duplicate output.
 			 */
-			closeBundle() {
+			closeBundle(this: { environment?: { name?: string } }) {
+				const envName = this.environment?.name;
+				if (envName && envName !== 'client') return;
 				if (injectMode && !buildTransformIndexHtmlCalled) {
 					logger?.warn(
 						`[svg-to-ico] inject: '${injectMode}' was requested but transformIndexHtml was never called during build. `
