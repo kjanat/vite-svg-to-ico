@@ -15,7 +15,7 @@ async function setupTmp(): Promise<string> {
 describe('CLI: generate', () => {
 	it('writes a multi-size favicon.ico to the out dir', async () => {
 		const dir = await setupTmp();
-		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16,32']);
+		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32']);
 		expect(result.exitCode).toBe(0);
 
 		const stats = await readFile(join(dir, 'favicon.ico'));
@@ -40,7 +40,8 @@ describe('CLI: generate', () => {
 		const result = await runCommand(generate, /* dprint-ignore */ [
 			FIXTURE,
 			'--out-dir', dir,
-			'--sizes', '16,32',
+			'--sizes', '16',
+			'--sizes', '32',
 			'--emit-sizes', 'png',
 		]);
 		expect(result.exitCode).toBe(0);
@@ -55,7 +56,7 @@ describe('CLI: generate', () => {
 
 	it('rejects invalid sizes', async () => {
 		const dir = await setupTmp();
-		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '0,500']);
+		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '0', '--sizes', '500']);
 		expect(result.exitCode).not.toBe(0);
 		expect(result.stderr.join('')).toContain('Invalid size');
 	});
@@ -69,7 +70,7 @@ describe('CLI: inject', () => {
 		const file = join(dir, 'index.html');
 		await writeFile(file, HTML);
 
-		const result = await runCommand(inject, [file, '--sizes', '16,32']);
+		const result = await runCommand(inject, [file, '--sizes', '16', '--sizes', '32']);
 		expect(result.exitCode).toBe(0);
 
 		const updated = await readFile(file, 'utf8');

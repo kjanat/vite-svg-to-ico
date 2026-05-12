@@ -1,6 +1,6 @@
 # vite-svg-to-ico
 
-[![NPM Version](https://img.shields.io/npm/v/vite-svg-to-ico?logo=npm&labelColor=CB3837&color=black)](https://www.npmjs.com/package/vite-svg-to-ico)
+[![NPM Version](https://img.shields.io/npm/v/vite-svg-to-ico?logo=npm&labelColor=CB3837&color=black)](https://npm.im/package/vite-svg-to-ico)
 
 Vite plugin that converts an image file into a multi-size `.ico` favicon at
 build time.\
@@ -139,20 +139,20 @@ icon sizes and don't want to duplicate them in framework config.
 ```json
 {
 	"scripts": {
-		"build": "vite build && svg-to-ico inject build/index.html build/404.html --sizes 16,32,48 --source favicon.svg"
+		"build": "vite build && svg-to-ico inject build/index.html build/404.html --sizes 16 --sizes 32 --sizes 48 --source favicon.svg"
 	}
 }
 ```
 
 The CLI is **not Vite-specific** — it ships with this package as a
 convenience but works against any HTML and any image source. Install
-the package globally (`bun add -g vite-svg-to-ico`, `npm i -g vite-svg-to-ico`) to
+the package globally (`bun i -g vite-svg-to-ico`, `npm i -g vite-svg-to-ico`) to
 get the `svg-to-ico` command on your PATH for use in non-Vite
 pipelines, one-off CI scripts, or other framework toolchains:
 
 ```sh
-svg-to-ico generate src/icon.svg --out-dir build --sizes 16,32,48 --emit-source --emit-sizes png
-svg-to-ico inject build/index.html --sizes 16,32,48 --source icon.svg
+svg-to-ico generate src/icon.svg --out-dir build --sizes 16 --sizes 32 --sizes 48 --emit-source --emit-sizes png
+svg-to-ico inject build/index.html --sizes 16 --sizes 32 --sizes 48 --source icon.svg
 ```
 
 Run `svg-to-ico --help` for the full surface.

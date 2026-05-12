@@ -1,20 +1,42 @@
 #!/usr/bin/env node
 /**
- * vite-svg-to-ico CLI — generate ICO favicons and inject `<link>` tags into
- * HTML files outside of a Vite plugin context.
+ * # svg-to-ico
  *
- * Useful when the host framework writes HTML outside Vite's pipeline
- * (SvelteKit, VitePress, Astro adapters), so the plugin's `transformIndexHtml`
- * never sees the final HTML. Wire as a `"postbuild"` script in `package.json`.
+ * CLI companion to the `vite-svg-to-ico` Vite plugin. Generates multi-size ICO
+ * favicons from any sharp-supported source image, and/or injects favicon
+ * `<link>` tags into existing HTML files.
+ *
+ * ## Why
+ *
+ * Vite's plugin pipeline ends at `closeBundle`. Frameworks that render HTML
+ * outside that pipeline (SvelteKit, VitePress, Astro adapters) write the user-
+ * visible HTML *after* the plugin's last hook fires, so the plugin's built-in
+ * `emit.inject` silently no-ops. This CLI runs as a `"postbuild"` step against
+ * the framework's final on-disk HTML, sidestepping the hook-ordering trap.
+ *
+ * The CLI is also useful for non-Vite pipelines: a one-off ICO generator that
+ * shares the plugin's emit logic (sharp + ICO packer) without dragging Vite
+ * into the equation. Global install with `bun i -g vite-svg-to-ico` (or
+ * `npm i -g vite-svg-to-ico`) puts `svg-to-ico` on PATH.
+ *
+ * ## Subcommands
+ *
+ * - `generate <input>` — rasterize an image to a multi-size ICO (and
+ *   optionally per-size PNGs/ICOs + a copy of the source) on disk.
+ * - `inject <files...>` — rewrite existing HTML files: strip
+ *   `<link rel="icon">`/`<link rel="shortcut icon">` tags, splice the
+ *   configured favicon tag set before `</head>`, preserve `apple-touch-icon`.
  *
  * @example
  * ```sh
- * svg-to-ico generate src/icon.svg --out-dir build --sizes 16,32,48
- * svg-to-ico inject build/index.html build/404.html --sizes 16,32,48
+ * # SvelteKit adapter-static, wired into package.json scripts:
+ * #   "build": "vite build && svg-to-ico inject build/index.html build/404.html -s 16 -s 32 -s 48 --source favicon.svg"
  *
- * Bundled with `vite-svg-to-ico`. The binary is named `svg-to-ico`
- * because it is not Vite-specific — global install (`bun add -g
- * vite-svg-to-ico`) makes it available on PATH for any HTML pipeline.
+ * # Generate a 16/32/48 ICO + per-size PNGs alongside it:
+ * svg-to-ico generate src/icon.svg --out-dir build -s 16 -s 32 -s 48 --emit-sizes png --emit-source
+ *
+ * # Inject favicon links into multiple HTML files at once:
+ * svg-to-ico inject dist/index.html dist/404.html -s 16 -s 32 -s 48 --source favicon.svg --base /app/
  * ```
  */
 
@@ -27,37 +49,76 @@ import { buildFaviconTags, injectTagsIntoHtml } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
 import { INJECT_MODES, type InjectMode } from './types.ts';
 
-/** Parse comma-separated integer list, validating each is 1–256 per the ICO spec. */
-function parseSizes(raw: string): number[] {
-	const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
-	if (parts.length === 0) {
-		throw new CLIError('`sizes` must contain at least one value', { code: 'INVALID_ARGUMENT' });
+/** Validate each size is an integer in [1, 256] (ICO spec) and that the list is non-empty. */
+function validateSizes(sizes: number[]): number[] {
+	if (sizes.length === 0) {
+		throw new CLIError('`--sizes` must contain at least one value', { code: 'INVALID_ARGUMENT' });
 	}
-	return parts.map((p) => {
-		const n = Number(p);
+	for (const n of sizes) {
 		if (!Number.isInteger(n) || n < 1 || n > 256) {
-			throw new CLIError(`Invalid size: "${p}". Must be an integer 1–256.`, { code: 'INVALID_ARGUMENT' });
+			throw new CLIError(`Invalid size: ${n}. Must be an integer 1–256.`, { code: 'INVALID_ARGUMENT' });
 		}
-		return n;
-	});
+	}
+	return sizes;
 }
 
 export const generate = command('generate')
-	.description('Generate a multi-size ICO favicon (and optional per-size PNGs) from an image source')
-	.arg('input', arg.string().describe('Path to source image (.svg, .png, .jpg, .webp, .avif, .gif, .tiff)'))
-	.flag('output', flag.string().alias('o').default('favicon.ico').describe('Output ICO filename'))
-	.flag('sizes', flag.string().alias('s').default('16,32,48').describe('Comma-separated pixel sizes (1–256)'))
-	.flag('out-dir', flag.string().alias('d').default('.').describe('Directory to write outputs into'))
+	.description(
+		'Rasterize a source image into a multi-size ICO favicon. Optionally also emit per-size '
+			+ 'PNG/ICO files and a copy of the original source. Equivalent to what the Vite plugin '
+			+ 'emits during `vite build`, but runs standalone.',
+	)
+	.arg(
+		'input',
+		arg.string().describe(
+			'Path to source image. Sharp-supported formats: .svg, .svgz, .png, .jpg/.jpeg, .webp, .avif, .gif, .tif/.tiff.',
+		),
+	)
+	.flag(
+		'output',
+		flag.string().alias('o').default('favicon.ico').describe(
+			'Filename for the combined ICO (relative to --out-dir). May include subdirectories; they are created as needed.',
+		),
+	)
+	.flag(
+		'sizes',
+		flag.array(flag.number()).alias('s').default([16, 32, 48]).describe(
+			'Pixel sizes to rasterize (integers 1–256). Pass repeated: `-s 16 -s 32 -s 48`.',
+		),
+	)
+	.flag(
+		'out-dir',
+		flag.string().alias('d').default('.').describe('Directory to write outputs into. Created if missing.'),
+	)
 	.flag(
 		'emit-sizes',
 		flag.enum(['none', 'png', 'ico', 'both']).default('none').describe(
-			'Also emit per-size files: png, ico, both, or none',
+			'Emit per-size files alongside the combined ICO: `png` (favicon-NxN.png), `ico` (favicon-NxN.ico), `both`, or `none`.',
 		),
 	)
-	.flag('emit-source', flag.boolean().default(false).describe('Copy the source file alongside the ICO'))
-	.flag('no-optimize', flag.boolean().default(false).describe('Disable max PNG compression'))
+	.flag(
+		'emit-source',
+		flag.boolean().default(false).describe(
+			'Copy the original source image into --out-dir (preserves its original basename).',
+		),
+	)
+	.flag(
+		'no-optimize',
+		flag.boolean().default(false).describe(
+			'Skip max PNG compression. Faster builds, larger files. (Default: compression level 9 + adaptive filtering.)',
+		),
+	)
+	.example('svg-to-ico generate src/icon.svg', 'Write favicon.ico (16/32/48) to the current directory.')
+	.example(
+		'svg-to-ico generate src/icon.svg -d build -s 16 -s 32 -s 48 --emit-sizes png --emit-source',
+		'Generate ICO + per-size PNGs + copy of source into build/.',
+	)
+	.example(
+		'svg-to-ico generate src/icon.png -s 64 -s 128 -s 256 -o icons/favicon.ico',
+		'PNG input, custom sizes, nested output path.',
+	)
 	.action(async ({ args, flags, out }) => {
-		const sizes = parseSizes(flags.sizes);
+		const sizes = validateSizes(flags.sizes);
 		const inputPath = resolve(args.input);
 		const outDir = resolve(flags['out-dir']);
 		const outputStem = flags.output.replace(/\.ico$/i, '');
@@ -105,26 +166,75 @@ export const generate = command('generate')
 	});
 
 export const inject = command('inject')
-	.description('Inject favicon `<link>` tags into existing HTML files (strips existing icon links)')
-	.arg('files', arg.string().variadic().describe('HTML file paths to rewrite'))
-	.flag('output', flag.string().alias('o').default('favicon.ico').describe('ICO filename to reference'))
-	.flag('sizes', flag.string().alias('s').default('16,32,48').describe('Comma-separated pixel sizes used in the ICO'))
-	.flag('mode', flag.enum(INJECT_MODES).alias('m').default('minimal').describe('Tag set to inject'))
-	.flag('base', flag.string().default('/').describe('URL base prefix for hrefs (matches Vite `base`)'))
+	.description(
+		'Rewrite existing HTML files on disk: strip `<link rel="icon">` and `<link rel="shortcut icon">` '
+			+ 'tags (preserves `apple-touch-icon`), splice in the configured favicon tag set before `</head>`, '
+			+ 'and write back. The ICO/SVG files themselves are expected to already exist at the configured paths.',
+	)
+	.arg(
+		'files',
+		arg.string().variadic().describe(
+			'HTML file paths to rewrite (one or more). Missing files emit a warning and are skipped, '
+				+ 'but do not fail the run.',
+		),
+	)
+	.flag(
+		'output',
+		flag.string().alias('o').default('favicon.ico').describe(
+			"ICO filename referenced in the injected `<link>` (matches `generate`'s --output).",
+		),
+	)
+	.flag(
+		'sizes',
+		flag.array(flag.number()).alias('s').default([16, 32, 48]).describe(
+			'Pixel sizes baked into the `sizes="…"` attribute (must match the ICO\'s actual contents). '
+				+ 'Pass repeated: `-s 16 -s 32 -s 48`.',
+		),
+	)
+	.flag(
+		'mode',
+		flag.enum(INJECT_MODES).alias('m').default('minimal').describe(
+			'Tag set to inject. `minimal`: ICO + optional SVG source link. `full`: also per-size PNG/ICO links.',
+		),
+	)
+	.flag(
+		'base',
+		flag.string().default('/').describe(
+			"URL base prefix for hrefs (matches Vite's `base` config). Trailing slash is optional; "
+				+ '`--base /app` and `--base /app/` both yield `/app/favicon.ico`.',
+		),
+	)
 	.flag(
 		'source',
-		flag.string().describe('Filename of the emitted source file, enables the SVG `<link>` (e.g. favicon.svg)'),
+		flag.string().describe(
+			'Filename of the source file (e.g. `favicon.svg`). When set, an additional '
+				+ '`<link rel="icon" type="image/svg+xml">` tag is injected.',
+		),
 	)
 	.flag(
 		'input-format',
-		flag.string().default('svg').describe('Source format for MIME type on the SVG `<link>` (svg, png, jpg, ...)'),
+		flag.string().default('svg').describe(
+			'Format of `--source` for the MIME type attribute. One of: svg, png, jpg, webp, avif, gif, tiff.',
+		),
+	)
+	.example(
+		'svg-to-ico inject build/index.html',
+		'Inject default favicon.ico tag (16/32/48) into a single file.',
+	)
+	.example(
+		'svg-to-ico inject build/index.html build/404.html -s 16 -s 32 -s 48 --source favicon.svg',
+		'Multi-file rewrite, also injects SVG source `<link>`.',
+	)
+	.example(
+		'svg-to-ico inject dist/index.html --base /repo/ -m full',
+		'Full tag set under a subpath base (e.g. GitHub Pages project site).',
 	)
 	.action(async ({ args, flags, out }) => {
 		const files = args.files;
 		if (files.length === 0) {
 			throw new CLIError('At least one HTML file path is required', { code: 'INVALID_ARGUMENT' });
 		}
-		const sizes = parseSizes(flags.sizes);
+		const sizes = validateSizes(flags.sizes);
 		const mode = flags.mode as InjectMode;
 		const sourceName = flags.source;
 		const tags = buildFaviconTags({
