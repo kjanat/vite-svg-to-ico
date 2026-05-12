@@ -158,3 +158,5 @@ dist
 
 # End of https://gitignore.kjanat.com/api/node,linux
 *.tmp.*
+AGENTS.md
+/_*.md
