@@ -557,3 +557,5 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		},
 	] satisfies Plugin[];
 }
+
+export { svgToIco };
