@@ -76,7 +76,11 @@ export interface IcoSpec {
 /** Emit one PNG file per requested size. */
 export interface PngSpec {
 	format: 'png';
-	/** Sizes to emit as individual PNG files (1–256). Required — no implicit default. */
+	/** Sizes to emit as individual PNG files (1–4096). Required — no implicit default.
+	 *
+	 * Standalone PNGs aren't bound by ICO's 8-bit width/height field — sizes
+	 * like `192` (Android), `512` (PWA manifest), `1024` (retina) are all valid.
+	 */
 	sizes: IconSize[];
 	/** Filename template using `{size}` as a placeholder. @default `'favicon-{size}x{size}.png'` */
 	filenameTemplate?: string;

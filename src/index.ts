@@ -340,9 +340,13 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 						if (!spec.sizes || spec.sizes.length === 0) {
 							throw new Error(`[svg-to-ico] emit[${i}] (png) requires \`sizes\` with at least one value.`);
 						}
-						const bad = spec.sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
+						// PNG specs are standalone files — they don't share ICO's 8-bit
+						// width/height field, so the 1–256 cap doesn't apply. Cap at 4096
+						// as a sanity check (covers PWA manifest 512, Android 192, retina
+						// 1024, etc. while catching obvious typos like 5120).
+						const bad = spec.sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 4096);
 						if (bad.length > 0) {
-							throw new Error(`[svg-to-ico] emit[${i}].sizes invalid: ${bad.join(', ')}. Must be integers 1–256.`);
+							throw new Error(`[svg-to-ico] emit[${i}].sizes invalid: ${bad.join(', ')}. Must be integers 1–4096.`);
 						}
 						if (typeof spec.inject === 'object' && spec.inject !== null && spec.inject.sizes) {
 							const allowed = new Set(spec.sizes);

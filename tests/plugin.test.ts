@@ -182,6 +182,27 @@ describe('v3 EmitSpec normalization', () => {
 		).toThrow('Must be integers 1–256');
 	});
 
+	it('accepts PngSpec sizes above the ICO 256 cap', () => {
+		// PNG specs are standalone — 192 (Android), 512 (PWA), 1024 (retina) are valid.
+		const { logger } = captureLogger();
+		expect(() =>
+			runConfig(
+				{ input: FIXTURE, emit: [{ format: 'png', sizes: [192, 512, 1024] }] },
+				logger,
+			)
+		).not.toThrow();
+	});
+
+	it('rejects PngSpec sizes above the 4096 sanity cap', () => {
+		const { logger } = captureLogger();
+		expect(() =>
+			runConfig(
+				{ input: FIXTURE, emit: [{ format: 'png', sizes: invalid<IconSize[]>([5120]) }] },
+				logger,
+			)
+		).toThrow('Must be integers 1–4096');
+	});
+
 	it('rejects unknown format', () => {
 		const { logger } = captureLogger();
 		expect(() =>
