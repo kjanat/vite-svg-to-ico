@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-05-24
+
+### Documentation
+
+- Document remote / URL input support in README. 3.1.0 shipped the feature
+  without updating the README; this release adds a short `Remote / URL input`
+  section under Usage. No code changes.
+
 ## [3.1.0] - 2026-05-24
 
 ### Added

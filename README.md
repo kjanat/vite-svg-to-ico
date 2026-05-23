@@ -115,6 +115,20 @@ svgToIco({
 Note: a `{ format: 'svg' }` spec only emits something when the input is an SVG.
 For raster inputs, the spec is silently no-ops in the source-copy step.
 
+### Remote / URL input
+
+`input` also accepts `http(s)://` and `file://` URLs (string or `URL`
+instance). Remote sources are fetched once per build and cached; HMR only
+watches local paths.
+
+```ts
+svgToIco({ input: 'https://example.com/icon.svg' });
+```
+
+```sh
+svg-to-ico generate https://example.com/icon.svg --out-dir build
+```
+
 ### Legacy v2 `emit` shape
 
 The `{ source, sizes, inject }` object shape from v2 still works
