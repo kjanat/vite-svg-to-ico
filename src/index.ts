@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { extname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import type { Connect, HtmlTagDescriptor, Plugin } from 'vite';
 
@@ -7,6 +6,7 @@ import { INJECT_ICON_LINK_RE } from './html.ts';
 import type { GenerateOptions, SizedPng } from './ico.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
 import { DEBUG, Instrumentation } from './instrumentation.ts';
+import { inputExtname, isHttpUrl, loadInputBytes, normalizeInput } from './load-input.ts';
 import { normalizeEmit } from './normalize-emit.ts';
 import { type ResolvedFile, resolveSpecs } from './resolve-specs.ts';
 import type {
@@ -112,7 +112,11 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 	let buildTransformIndexHtmlCalled = false;
 	let legacyWarned = false;
 
-	const { input, sizes: rawSizes = [16, 32, 48], sharp: sharpOpts, dev: rawDev = true } = opts;
+	const { input: rawInput, sizes: rawSizes = [16, 32, 48], sharp: sharpOpts, dev: rawDev = true } = opts;
+
+	// Collapse URL instances and file:// strings to a canonical path-or-http string
+	// up front; everything downstream operates on `input` as a string.
+	const input = rawInput == null ? '' : normalizeInput(rawInput);
 
 	const optimize = sharpOpts?.optimize ?? true;
 	const resizeOpts = sharpOpts?.resize;
@@ -126,7 +130,8 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		: { ...devDefaults, ...rawDev };
 
 	// --- input format detection ---
-	const inputExt = extname(input).toLowerCase();
+	const inputIsUrl = isHttpUrl(input);
+	const inputExt = inputExtname(input);
 	const inputFormat = SVG_EXTENSIONS.has(inputExt) ? 'svg' : inputExt.replace('.', '');
 
 	/** Normalize extensions to correct MIME sub-types. */
@@ -229,16 +234,19 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 		return lines.join('\n');
 	}
 
-	/** Read + cache the source input buffer. */
+	/** Read + cache the source input buffer (filesystem or http(s) URL). */
 	async function inputBytes(): Promise<Buffer> {
-		if (!cachedInputBuffer) cachedInputBuffer = await readFile(resolvedInput);
+		if (!cachedInputBuffer) cachedInputBuffer = await loadInputBytes(resolvedInput);
 		return cachedInputBuffer;
 	}
 
 	/** Ensure required PNGs are generated, return them. */
 	async function pngs(): Promise<SizedPng[]> {
 		if (!generatedPngs) {
-			generatedPngs = await generateSizedPngs(resolvedInput, genOptsFor(resolution.requiredSizes));
+			// URLs are fetched once and cached; sharp accepts the Buffer directly.
+			// Filesystem paths can be passed through so sharp opens the file itself.
+			const src = inputIsUrl ? await inputBytes() : resolvedInput;
+			generatedPngs = await generateSizedPngs(src, genOptsFor(resolution.requiredSizes));
 		}
 		return generatedPngs;
 	}
@@ -391,7 +399,7 @@ export default function svgToIco(opts: PluginOptions): Plugin[] {
 					);
 				}
 
-				resolvedInput = resolve(config.root, input);
+				resolvedInput = inputIsUrl ? input : resolve(config.root, input);
 				resolvedBase = config.base;
 			},
 		},

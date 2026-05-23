@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { Logger, Plugin, ResolvedConfig } from 'vite';
 
 import svgToIco from '#vite-svg-to-ico';
@@ -83,6 +84,21 @@ describe('svgToIco plugin factory', () => {
 
 	it('accepts empty v3 emit array (no extras emitted)', () => {
 		expect(() => svgToIco({ input: FIXTURE, emit: [] })).not.toThrow();
+	});
+
+	it('accepts a file:// URL instance as input', () => {
+		const url = pathToFileURL(FIXTURE);
+		expect(() => svgToIco({ input: url })).not.toThrow();
+	});
+
+	it('accepts an http(s):// URL instance as input', () => {
+		const url = new URL('https://example.test/icon.svg');
+		expect(() => svgToIco({ input: url })).not.toThrow();
+	});
+
+	it('throws TypeError on URL with unsupported protocol', () => {
+		const ftp = new URL('ftp://example.test/icon.svg');
+		expect(() => svgToIco({ input: ftp })).toThrow(TypeError);
 	});
 });
 

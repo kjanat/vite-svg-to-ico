@@ -41,13 +41,14 @@
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, dirname, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { cwd } from 'node:process';
 
 import { arg, cli, CLIError, command, flag } from '@kjanat/dreamcli';
 
 import { buildFaviconTags, injectTagsIntoHtml } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
+import { inputBasename, isHttpUrl, loadInputBytes, normalizeInput } from './load-input.ts';
 import { INJECT_MODES, type InjectMode } from './types.ts';
 
 /**
@@ -70,8 +71,16 @@ const sizesFlag = () =>
 /** Resolve a raw string to an absolute filesystem path (relative to CWD). */
 const toAbsolutePath = (raw: unknown): string => resolve(String(raw));
 
-/** Reusable absolute-path arg: parsing happens at the schema layer. */
-const pathArg = () => arg.custom<string>(toAbsolutePath);
+/**
+ * Source-input arg. Accepts filesystem paths (resolved to absolute),
+ * `file://` URL strings (converted to paths, then resolved), and `http(s)://`
+ * URL strings (passed through; fetched at action time by {@link loadInputBytes}).
+ */
+const sourceArg = () =>
+	arg.custom<string>((raw) => {
+		const s = normalizeInput(String(raw));
+		return isHttpUrl(s) ? s : resolve(s);
+	});
 
 /** Reusable absolute-path flag: parsing happens at the schema layer. */
 const pathFlag = () => flag.custom<string>(toAbsolutePath);
@@ -92,9 +101,10 @@ export const generate = command('generate')
 	)
 	.arg(
 		'input',
-		pathArg().describe(
-			'Path to source image (resolved to absolute). Sharp-supported formats: .svg, .svgz, .png, '
-				+ '.jpg/.jpeg, .webp, .avif, .gif, .tif/.tiff.',
+		sourceArg().describe(
+			'Path, `file://` URL, or `http(s)://` URL to source image. Paths and `file://` URLs are '
+				+ 'resolved to absolute; `http(s)://` URLs are fetched at run time. Sharp-supported '
+				+ 'formats: .svg, .svgz, .png, .jpg/.jpeg, .webp, .avif, .gif, .tif/.tiff.',
 		),
 	)
 	.flag(
@@ -141,11 +151,11 @@ export const generate = command('generate')
 	)
 	.action(async ({ args, flags, out }) => {
 		const sizes = flags.sizes;
-		const inputPath = args.input;
+		const input = args.input;
 		const outDir = flags['out-dir'];
 		const outputStem = flags.output.replace(/\.ico$/i, '');
 
-		const inputBuffer = await readFile(inputPath);
+		const inputBuffer = await loadInputBytes(input);
 		const pngs = await generateSizedPngs(inputBuffer, {
 			sizes,
 			optimize: flags.optimize,
@@ -168,7 +178,7 @@ export const generate = command('generate')
 		);
 
 		if (flags['emit-source']) {
-			const sourcePath = resolve(outDir, basename(inputPath));
+			const sourcePath = resolve(outDir, inputBasename(input));
 			await writeAt(sourcePath, inputBuffer, `Wrote ${sourcePath} (source)`);
 		}
 

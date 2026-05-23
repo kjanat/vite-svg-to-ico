@@ -1,5 +1,6 @@
-import { basename, parse } from 'node:path';
+import { parse } from 'node:path';
 import { inspect } from 'node:util';
+import { inputBasename } from './load-input.ts';
 import { isLegacyEmit } from './types.ts';
 import type { EmitSpec, IconSize, IcoSpec, NormalizedEmit, PluginOptions, PngSpec, SvgSpec } from './types.ts';
 import type { LegacyEmitOptions } from './types.ts'; // v2 compat
@@ -19,7 +20,7 @@ import type { LegacyEmitOptions } from './types.ts'; // v2 compat
  */
 export function normalizeEmit(opts: PluginOptions, defaultSizes: IconSize[]): NormalizedEmit {
 	const defaultIcoFilename = opts.output ?? 'favicon.ico';
-	const defaultSvgFilename = basename(opts.input);
+	const defaultSvgFilename = inputBasename(opts.input);
 
 	if (opts.emit === undefined) {
 		return {

@@ -4,11 +4,18 @@ import type { PngOptions, ResizeOptions } from 'sharp';
  * @see https://npmjs.com/package/vite-svg-to-ico#options
  */
 export interface PluginOptions {
-	/** Absolute or root-relative path to the source image file.
+	/** Source image. Accepts:
 	 *
-	 * Supports SVG, PNG, JPEG, WebP, AVIF, GIF, and TIFF via sharp.
+	 * - an absolute / root-relative filesystem path,
+	 * - a `file://` URL (string or {@link URL} instance) — treated as a path,
+	 * - an `http(s)://` URL (string or {@link URL} instance) — fetched at
+	 *   build (and dev) time.
+	 *
+	 * Supports SVG, PNG, JPEG, WebP, AVIF, GIF, and TIFF via sharp. HTTP URL
+	 * inputs are fetched once per build; HMR (file watching) only applies to
+	 * local paths and `file://` URLs.
 	 */
-	input: string;
+	input: string | URL;
 	/** Default ICO filename, used as a fallback when an {@link IcoSpec} omits `filename`.
 	 *
 	 * @deprecated In v3, prefer specifying `filename` on an {@link IcoSpec}

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-05-24
+
+### Added
+
+- **URL input support**: `PluginOptions.input` and the `generate` CLI subcommand
+  now accept `http(s)://` URLs in addition to filesystem paths.
+  Remote sources are fetched once per build via the global `fetch` and cached;
+  HMR (file watching) still only applies to local paths.
+  Query strings are stripped for basename/extension detection,
+  so `https://example.com/icon.svg?v=2` is recognised as SVG
+  and copied out as `icon.svg` when `--emit-source` is set.
+- **`URL` instances + `file://` URLs**: `PluginOptions.input` is widened to
+  `string | URL`. Plain strings, `URL` instances, and `file://` URLs
+  (string or instance) are all accepted; `file://` inputs are converted to
+  filesystem paths via `fileURLToPath`. CLI `generate` accepts `file://`
+  URL strings on the command line.
+- New module `src/load-input.ts` exposing `SourceInput`, `normalizeInput()`,
+  `isHttpUrl()`, `inputBasename()`, `inputExtname()`, and `loadInputBytes()`.
+  Internal helpers used by the plugin and CLI; usable directly by consumers
+  that want the same path-or-URL handling.
+
+### Changed
+
+- `PluginOptions.input` type widened from `string` to `string | URL`
+  (additive; existing string consumers are unaffected).
+- `generate` CLI subcommand's `input` arg description updated to mention
+  `file://` and `http(s)://` URL support.
+
 ## [3.0.0] - 2026-05-12
 
 ### Added

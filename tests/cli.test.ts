@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { generate, inject } from '#internals/cli.ts';
 import { runCommand } from '@kjanat/dreamcli/testkit';
@@ -10,6 +11,26 @@ const FIXTURE = resolve(import.meta.dirname, 'fixtures/test.svg');
 
 async function setupTmp(): Promise<string> {
 	return mkdtemp(join(tmpdir(), 'vite-svg-to-ico-cli-'));
+}
+
+/**
+ * Build a `typeof fetch`-compatible stub. The `preconnect` no-op is required to
+ * fully satisfy the global `fetch` shape; without it TS rejects assignment.
+ */
+function makeFetchStub(
+	impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+): typeof globalThis.fetch {
+	return Object.assign(impl, { preconnect: () => {} });
+}
+
+async function withStubbedFetch<T>(stub: typeof globalThis.fetch, fn: () => Promise<T>): Promise<T> {
+	const original = globalThis.fetch;
+	globalThis.fetch = stub;
+	try {
+		return await fn();
+	} finally {
+		globalThis.fetch = original;
+	}
 }
 
 describe('CLI: generate', () => {
@@ -59,6 +80,54 @@ describe('CLI: generate', () => {
 		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '0', '--sizes', '500']);
 		expect(result.exitCode).not.toBe(0);
 		expect(result.stderr.join('')).toContain('Invalid size');
+	});
+
+	it('fetches a URL source and writes ICO + source copy', async () => {
+		const dir = await setupTmp();
+		const svgBytes = await readFile(FIXTURE);
+		const url = 'https://example.test/path/remote.svg?v=1';
+		const seen: string[] = [];
+
+		const stub = makeFetchStub(async (input) => {
+			seen.push(String(input));
+			return new Response(svgBytes, { status: 200, headers: { 'content-type': 'image/svg+xml' } });
+		});
+
+		const result = await withStubbedFetch(
+			stub,
+			() => runCommand(generate, [url, '--out-dir', dir, '--sizes', '16', '--emit-source']),
+		);
+		expect(result.exitCode).toBe(0);
+		expect(seen).toEqual([url]);
+
+		const ico = await readFile(join(dir, 'favicon.ico'));
+		expect(ico.byteLength).toBeGreaterThan(0);
+
+		// --emit-source should use the URL pathname basename, *not* including the query string.
+		const sourceCopy = await readFile(join(dir, 'remote.svg'), 'utf8');
+		expect(sourceCopy).toContain('<svg');
+	});
+
+	it('accepts a file:// URL string as input', async () => {
+		const dir = await setupTmp();
+		const fileUrl = pathToFileURL(FIXTURE).toString();
+
+		const result = await runCommand(generate, [fileUrl, '--out-dir', dir, '--sizes', '16']);
+		expect(result.exitCode).toBe(0);
+
+		const ico = await readFile(join(dir, 'favicon.ico'));
+		expect(ico.byteLength).toBeGreaterThan(0);
+	});
+
+	it('reports a clear error when URL fetch fails', async () => {
+		const dir = await setupTmp();
+		const url = 'https://example.test/missing.svg';
+
+		const stub = makeFetchStub(async () => new Response('not found', { status: 404, statusText: 'Not Found' }));
+
+		const result = await withStubbedFetch(stub, () => runCommand(generate, [url, '--out-dir', dir]));
+		expect(result.exitCode).not.toBe(0);
+		expect([...result.stderr, ...result.stdout].join('\n')).toContain('404');
 	});
 });
 
