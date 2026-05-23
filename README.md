@@ -217,7 +217,7 @@ svgToIco({ input: 'src/icon.svg', dev: { hmr: false } });
 
 | Option   | Type                              | Default               | Description                                                                       |
 | -------- | --------------------------------- | --------------------- | --------------------------------------------------------------------------------- |
-| `input`  | `string`                          | **(required)**        | Path to source image (SVG, PNG, JPEG, WebP, etc.).                                |
+| `input`  | `string \| URL`                   | **(required)**        | Source image: path, `URL` instance, or `file://` / `http(s)://` URL string.       |
 | `sizes`  | `number \| number[]`              | `[16, 32, 48]`        | Default sizes used when an `IcoSpec` omits its own `sizes`.                       |
 | `emit`   | `EmitSpec[] \| LegacyEmitOptions` | `[{ format: 'ico' }]` | What to emit and inject. Array of specs (v3) or legacy object shape (deprecated). |
 | `output` | `string`                          | `'favicon.ico'`       | _Deprecated_. Fallback ICO filename when an `IcoSpec` omits `filename`.           |
