@@ -126,7 +126,11 @@ svgToIco({ input: 'https://example.com/icon.svg' });
 ```
 
 ```sh
+# globally installed
 svg-to-ico generate https://example.com/icon.svg --out-dir build
+
+# one-off via npx (no install)
+npx -y --package=vite-svg-to-ico svg-to-ico generate https://example.com/icon.svg --out-dir build
 ```
 
 ### Legacy v2 `emit` shape
