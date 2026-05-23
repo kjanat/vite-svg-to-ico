@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.2] - 2026-05-24
+
+### Fixed
+
+- CLI: `svg-to-ico --version` no longer errors with `Unknown flag --version`.
+  Root cause: `.packageJson()` was being chained _after_ `.description()` on
+  the dreamcli builder; the version flag is only registered when
+  `.packageJson()` is called first in the chain.
+
+### Documentation
+
+- README Options table: `input` type widened from `string` to `string | URL`
+  (was stale from 3.1.0; missed in 3.1.1's README pass).
+- README: added `npx -y --package=vite-svg-to-ico svg-to-ico …` invocation
+  example next to the globally-installed CLI form so consumers can try the
+  remote/URL input without installing the package first.
+
 ## [3.1.1] - 2026-05-24
 
 ### Documentation

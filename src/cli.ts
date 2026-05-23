@@ -316,8 +316,8 @@ export const inject = command('inject')
  * subcommands plus shell-completion generation.
  */
 export const app = cli('svg-to-ico')
-	.description('Generate ICO favicons and inject <link> tags into HTML files')
 	.packageJson()
+	.description('Generate ICO favicons and inject <link> tags into HTML files')
 	.command(generate)
 	.command(inject)
 	.completions();
