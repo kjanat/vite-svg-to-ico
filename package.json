@@ -41,11 +41,11 @@
 		"dev": "tsdown --watch",
 		"fmt": "dprint fmt",
 		"prepack": "bun --bun bd -l error",
-		"prepublishOnly": "bun test && bun --bun typecheck",
+		"prepublishOnly": "run -s test typecheck",
 		"tar": "bun pm pack --quiet | awk 'NF{line=$0} END{print line}'",
 		"test": "bun test",
 		"typecheck": "tsgo --noEmit",
-		"lint": "bunx -p @biomejs/biome biome lint"
+		"lint": "biome lint"
 	},
 	"dependencies": {
 		"@kjanat/dreamcli": "^2.1.0",
@@ -53,10 +53,12 @@
 	},
 	"devDependencies": {
 		"@arethetypeswrong/core": "^0.18.2",
-		"@types/bun": "^1.3.13",
-		"@typescript/native-preview": "^7.0.0-dev.20260512.1",
+		"@biomejs/biome": "^2.4.15",
+		"@types/bun": "^1.3.14",
+		"@typescript/native-preview": "^7.0.0-dev.20260523.1",
 		"dprint": "^0.54.0",
-		"publint": "^0.3.20",
+		"publint": "^0.3.21",
+		"runner-run": "^0.11.0",
 		"tsdown": "^0.22.0",
 		"typescript": "^6.0.3",
 		"unplugin-unused": "^0.5.7"
