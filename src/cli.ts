@@ -50,6 +50,7 @@ import { buildFaviconTags, injectTagsIntoHtml } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
 import { inputBasename, isHttpUrl, loadInputBytes, normalizeInput } from './load-input.ts';
 import { INJECT_MODES, type InjectMode } from './types.ts';
+import pkg from "#pkg";
 
 /**
  * Build the `--sizes` flag: an array of per-element-validated integers, each
@@ -316,7 +317,7 @@ export const inject = command('inject')
  * subcommands plus shell-completion generation.
  */
 export const app = cli('svg-to-ico')
-	.packageJson()
+	.packageJson(pkg)
 	.description('Generate ICO favicons and inject <link> tags into HTML files')
 	.command(generate)
 	.command(inject)

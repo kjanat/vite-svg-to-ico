@@ -29,7 +29,8 @@
 	},
 	"imports": {
 		"#vite-svg-to-ico": "./src/index.ts",
-		"#internals/*": "./src/*"
+		"#internals/*": "./src/*",
+		"#pkg": "./package.json"
 	},
 	"files": [
 		"dist",
@@ -78,5 +79,8 @@
 	},
 	"bin": {
 		"svg-to-ico": "dist/cli.mjs"
+	},
+	"patchedDependencies": {
+		"@kjanat/dreamcli@2.1.0": "patches/@kjanat%2Fdreamcli@2.1.0.patch"
 	}
 }

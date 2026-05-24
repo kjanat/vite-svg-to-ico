@@ -20,6 +20,7 @@
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
 		"noImplicitOverride": true,
+    "customConditions": ["bun"],
 
 		// Some stricter flags
 		"noUnusedLocals": true,

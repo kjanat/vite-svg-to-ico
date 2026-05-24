@@ -1,0 +1,237 @@
+diff --git a/node_modules/@kjanat/dreamcli/.bun-tag-5b9914c7fe14635e b/.bun-tag-5b9914c7fe14635e
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/src/core/cli/index.ts b/src/core/cli/index.ts
+index 0dfe3eef5b2d3b2052cf1c82b7160d66b39a42f8..cc523db8febafc29ddeedadde4962e9b4880f521 100644
+--- a/src/core/cli/index.ts
++++ b/src/core/cli/index.ts
+@@ -9,9 +9,12 @@
+  * @module dreamcli/core/cli
+  */
+ 
++import { fileURLToPath } from 'node:url';
++
+ import type { CompletionOptions, Shell } from '#internals/core/completion/index.ts';
+ import { generateCompletion, SHELLS } from '#internals/core/completion/index.ts';
+ import type { FormatLoader } from '#internals/core/config/index.ts';
++import type { PackageJsonData } from '#internals/core/config/package-json.ts';
+ import { CLIError } from '#internals/core/errors/index.ts';
+ import { buildRunResult, executeCommand } from '#internals/core/execution/index.ts';
+ import type { HelpOptions } from '#internals/core/help/index.ts';
+@@ -228,6 +231,26 @@ interface PackageJsonSettings {
+ 	 * @defaultValue `false`
+ 	 */
+ 	readonly inferName: boolean;
++	/**
++	 * Explicit filesystem anchor for discovery; overrides `adapter.cwd`.
++	 *
++	 * Resolved to a string path before storage. When set, `discoverPackageJson`
++	 * walks up from here instead of the runtime cwd. Required for installable
++	 * CLIs whose version should reflect THEIR OWN package, not the consumer's
++	 * working directory.
++	 */
++	readonly from: string | undefined;
++	/**
++	 * Pre-loaded data; skips filesystem discovery, uses values verbatim.
++	 *
++	 * @example
++	 * ```ts
++	 * import pkg from './package.json' with { type: 'json' };
++	 *
++	 * cli('mycli').packageJson(pkg);
++	 * ```
++	 */
++	readonly data: PackageJsonData | undefined;
+ }
+ 
+ // --- Options for execute/run
+@@ -439,8 +462,12 @@ class CLIBuilder {
+ 	 *
+ 	 * Has no effect in `.execute()` (which is filesystem-free by design).
+ 	 *
+-	 * @param settings - Optional settings. Pass `{ inferName: true }` to
+-	 *   also infer the CLI name from `bin` keys or the package `name` field.
++	 * @param settings - Optional settings:
++	 *   - `inferName`: also infer the CLI name from `bin` keys or `name` field.
++	 *   - `from`: anchor discovery to a specific file/URL/path instead of `cwd`.
++	 *     Pass `import.meta.url` for installable CLIs that need to report
++	 *     THEIR OWN version (not the consumer's project version). Accepts
++	 *     string paths, `file:` URL strings, or `URL` instances.
+ 	 *
+ 	 * @example
+ 	 * ```ts
+@@ -456,6 +483,12 @@ class CLIBuilder {
+ 	 *   .command(deploy)
+ 	 *   .run();
+ 	 *
++	 * // Installable CLI; discover OUR package.json, not the consumer's:
++	 * cli('mycli')
++	 *   .packageJson({ from: import.meta.url })
++	 *   .command(deploy)
++	 *   .run();
++	 *
+ 	 * // Explicit values always win:
+ 	 * cli('mycli')
+ 	 *   .packageJson()
+@@ -463,11 +496,32 @@ class CLIBuilder {
+ 	 *   .run();
+ 	 * ```
+ 	 */
+-	packageJson(settings?: { readonly inferName?: boolean }): CLIBuilder {
++	packageJson(data: PackageJsonData): CLIBuilder;
++	packageJson(settings?: { readonly inferName?: boolean; readonly from?: string | URL }): CLIBuilder;
++	packageJson(
++		input?: PackageJsonData | { readonly inferName?: boolean; readonly from?: string | URL },
++	): CLIBuilder {
++		if (isPackageJsonData(input)) {
++			// Merge data into schema immediately so `.execute()` (which skips
++			// runtime preflight) still picks up version/description. Explicit
++			// `.version()`/`.description()` calls win, matching settings semantics.
++			return new CLIBuilder({
++				...this.schema,
++				...(this.schema.version === undefined && input.version !== undefined
++					? { version: input.version }
++					: {}),
++				...(this.schema.description === undefined && input.description !== undefined
++					? { description: input.description }
++					: {}),
++				packageJsonSettings: { inferName: false, from: undefined, data: input },
++			});
++		}
+ 		return new CLIBuilder({
+ 			...this.schema,
+ 			packageJsonSettings: {
+-				inferName: settings?.inferName ?? false,
++				inferName: input?.inferName ?? false,
++				from: normalizeFromSetting(input?.from),
++				data: undefined,
+ 			},
+ 		});
+ 	}
+@@ -893,6 +947,38 @@ function inferInvocationName(argv: readonly string[]): string | undefined {
+ 	return argv0 !== undefined ? basename(argv0) : undefined;
+ }
+ 
++// --- packageJson.from normalisation
++
++/**
++ * Coerce a {@link PackageJsonSettings.from | `packageJson.from`} input
++ * (string path, `file:` URL string, or {@link URL} instance) to a plain
++ * filesystem path string. `undefined` passes through unchanged.
++ *
++ * @internal
++ */
++function normalizeFromSetting(from: string | URL | undefined): string | undefined {
++	if (from === undefined) return undefined;
++	if (from instanceof URL) return fileURLToPath(from);
++	if (from.startsWith('file:')) return fileURLToPath(from);
++	return from;
++}
++
++/**
++ * Predicate distinguishing the {@link PackageJsonData | data} overload of
++ * `.packageJson()` from the settings overload at runtime.
++ *
++ * A value is treated as `PackageJsonData` when it's a plain object that
++ * carries at least one recognised field (`name`, `version`, `description`,
++ * or `bin`). An empty `{}` or a settings-shaped object (`inferName` /
++ * `from`) falls through to the settings overload.
++ *
++ * @internal
++ */
++function isPackageJsonData(value: unknown): value is PackageJsonData {
++	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
++	return 'name' in value || 'version' in value || 'description' in value || 'bin' in value;
++}
++
+ // --- Factory function
+ 
+ /**
+diff --git a/src/core/cli/runtime-preflight.ts b/src/core/cli/runtime-preflight.ts
+index 610fb35ab7853948d7cb451f9a3e99d09d03428c..455e839aa673b649b9745afe76a04d6d4e2ad135 100644
+--- a/src/core/cli/runtime-preflight.ts
++++ b/src/core/cli/runtime-preflight.ts
+@@ -11,6 +11,7 @@
+ 
+ import type { FormatLoader } from '#internals/core/config/index.ts';
+ import { discoverConfig } from '#internals/core/config/index.ts';
++import type { PackageJsonData } from '#internals/core/config/package-json.ts';
+ import { discoverPackageJson, inferCliName } from '#internals/core/config/package-json.ts';
+ import { CLIError, ParseError } from '#internals/core/errors/index.ts';
+ import type { Verbosity } from '#internals/core/output/index.ts';
+@@ -34,6 +35,10 @@ interface RuntimeConfigSettings {
+ interface RuntimePackageJsonSettings {
+ 	/** Whether to infer the CLI binary name from `package.json` `bin` field. */
+ 	readonly inferName: boolean;
++	/** Explicit anchor (resolved path) for discovery; `undefined` falls back to `adapter.cwd`. */
++	readonly from: string | undefined;
++	/** Pre-loaded data; when set, discovery is skipped entirely. */
++	readonly data: PackageJsonData | undefined;
+ }
+ 
+ /**
+@@ -276,7 +281,9 @@ async function applyPackageJsonDiscovery(
+ 	const packageSchema =
+ 		packageJsonSettings !== undefined && !isCompletions
+ 			? await (async (): Promise<RuntimePreflightSchemaLike> => {
+-					const pkg = await discoverPackageJson(adapter);
++					// Pre-loaded data short-circuits filesystem discovery entirely.
++					const pkg = packageJsonSettings.data
++						?? (await discoverPackageJson(adapter, packageJsonSettings.from));
+ 					if (pkg === null) return schema;
+ 
+ 					const inferredName = packageJsonSettings.inferName ? inferCliName(pkg) : undefined;
+diff --git a/src/core/config/package-json.ts b/src/core/config/package-json.ts
+index 10d0bd60eb6e328096c99b1e55ff2e55e0343291..6e7e5baf6e8bae0cde7ac5473ddc76d511365ee5 100644
+--- a/src/core/config/package-json.ts
++++ b/src/core/config/package-json.ts
+@@ -86,7 +86,8 @@ function joinPath(base: string, segment: string): string {
+ // --- discoverPackageJson
+ 
+ /**
+- * Discover the nearest `package.json` by walking up from `adapter.cwd`.
++ * Discover the nearest `package.json` by walking up from `startDir` (or
++ * `adapter.cwd` when omitted).
+  *
+  * Convenience helper behind `CLIBuilder.packageJson()`. Most apps should let
+  * the CLI runtime discover package metadata automatically; call this directly
+@@ -96,6 +97,13 @@ function joinPath(base: string, segment: string): string {
+  * is found (not an error). Malformed JSON and non-object roots also
+  * return `null` — the feature is a convenience, not a hard requirement.
+  *
++ * @param adapter   - Adapter providing `readFile` + `cwd`.
++ * @param startDir  - Optional explicit directory or file path to walk up from.
++ *   Pass an absolute path inside your own package (e.g.
++ *   `fileURLToPath(import.meta.url)`) when authoring an installable CLI
++ *   whose version should reflect the CLI's own package, not the consumer's
++ *   working directory. Defaults to `adapter.cwd` when `undefined`.
++ *
+  * @example
+  * ```ts
+  * import { discoverPackageJson } from '@kjanat/dreamcli';
+@@ -106,8 +114,11 @@ function joinPath(base: string, segment: string): string {
+  * }
+  * ```
+  */
+-async function discoverPackageJson(adapter: PackageJsonAdapter): Promise<PackageJsonData | null> {
+-	let dir: string | undefined = adapter.cwd;
++async function discoverPackageJson(
++	adapter: PackageJsonAdapter,
++	startDir?: string,
++): Promise<PackageJsonData | null> {
++	let dir: string | undefined = startDir ?? adapter.cwd;
+ 
+ 	while (dir !== undefined) {
+ 		let content: string | null = null;
+diff --git a/src/runtime/node-builtins.d.ts b/src/runtime/node-builtins.d.ts
+index cba4b8d6067b724453037a072622d72f13b87789..8dd04ce914672ed8311e1a9ede483067d66e7cc8 100644
+--- a/src/runtime/node-builtins.d.ts
++++ b/src/runtime/node-builtins.d.ts
+@@ -21,3 +21,7 @@ declare module 'node:readline' {
+ declare module 'node:fs/promises' {
+ 	function readFile(path: string | URL, encoding: 'utf8'): Promise<string>;
+ }
++
++declare module 'node:url' {
++	function fileURLToPath(url: string | URL): string;
++}
