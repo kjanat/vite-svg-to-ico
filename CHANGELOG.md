@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.3] - 2026-05-24
+
+### Fixed
+
+- CLI `--version` now reports the package's own version regardless of the
+  caller's working directory. 3.1.2 reordered `.packageJson()` in the dreamcli
+  chain, which was a red herring; the real root cause is that dreamcli's
+  `.packageJson()` walks up from `process.cwd()`, so an installed CLI
+  (`bunx`, `npx`, global install) reports the consumer's project version
+  (or errors out as `Unknown flag --version` when no `package.json` is
+  reachable). Now we read our own `package.json` statically via a `#pkg`
+  subpath import and pass it through a new `.packageJson(data)` overload
+  added to a patched `@kjanat/dreamcli`. Filed upstream as
+  [kjanat/dreamcli#18](https://github.com/kjanat/dreamcli/issues/18).
+
+### Changed
+
+- Dropped `peerDependencies.vite`. The previous range
+  (`^6.0.0 || ^7.0.0 || ^8.0.0`) advertised compatibility that was never
+  exercised against vite 6 or 7. The plugin only uses stable hooks
+  (`configResolved`, `transformIndexHtml`, dev middleware, asset emission)
+  and works against any modern vite, but we won't claim what we don't test.
+- Added `overrides.vite` so workspace installs (root + smoke fixture) resolve
+  to a single vite version, avoiding nominal-type clashes across `node_modules`.
+
+### Internal
+
+- New `#pkg` subpath import maps to `./package.json` so `src/cli.ts` can
+  consume its own metadata via `import pkg from '#pkg'` (bundler-resolved
+  at build time).
+- New `types/dreamcli-augment.d.ts` declaration-merges the patched
+  `.packageJson()` overloads onto `CLIBuilder` (dreamcli ships
+  `dist/*.d.mts` ahead of `src/` in its exports map, so TS sees the stock
+  types even though Bun loads the patched `src/`).
+- `patches/@kjanat%2Fdreamcli@2.1.0.patch` adds the `(data)` overload, a
+  `from: string | URL` setting, and ships them through `discoverPackageJson`
+  and the runtime preflight. Removable once dreamcli ships the upstream fix.
+
 ## [3.1.2] - 2026-05-24
 
 ### Fixed
