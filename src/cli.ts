@@ -46,11 +46,11 @@ import { cwd } from 'node:process';
 
 import { arg, cli, CLIError, command, flag } from '@kjanat/dreamcli';
 
+import pkg from '#pkg';
 import { buildFaviconTags, injectTagsIntoHtml } from './html.ts';
 import { generateSizedPngs, packIco } from './ico.ts';
 import { inputBasename, isHttpUrl, loadInputBytes, normalizeInput } from './load-input.ts';
 import { INJECT_MODES, type InjectMode } from './types.ts';
-import pkg from "#pkg";
 
 /**
  * Build the `--sizes` flag: an array of per-element-validated integers, each
