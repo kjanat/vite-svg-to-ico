@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.4] - 2026-05-25
+
+### Fixed
+
+- CLI `--version` actually works for installed/`npx`/`bunx` consumers now
+  (third time's the charm — sorry). 3.1.3 shipped a fix that depended on a
+  local `bun patch` of `@kjanat/dreamcli`; patches don't propagate via npm,
+  so consumers got vanilla dreamcli where `.packageJson()` walks up from
+  `cwd` and either reports the wrong version or errors out as
+  `Unknown flag --version`. This release switches to dreamcli's stable
+  `.version(string)` API and reads the version statically via a `#pkg`
+  subpath import. Bundler-resolved at build time, no runtime fs walk, no
+  patch required, works against stock `@kjanat/dreamcli@2.1.0`.
+
+### Removed
+
+- `patches/@kjanat%2Fdreamcli@2.1.0.patch` and the `patchedDependencies`
+  entry in `package.json`. The dreamcli patch added a `.packageJson(data)`
+  overload + `from` option for the same problem; useful as an upstream
+  contribution (still filed as
+  [kjanat/dreamcli#18](https://github.com/kjanat/dreamcli/issues/18)),
+  unnecessary as a local workaround.
+- `types/dreamcli-augment.d.ts`. The module augmentation existed only to
+  add the patched `.packageJson()` overloads to dreamcli's stock `.d.mts`.
+  No longer needed.
+
+### Build
+
+- `tsdown.config.ts`: replaced deprecated `external` with `deps.neverBundle`
+  (rolldown rename). Keeps `vite` as an `import type` reference in `.d.mts`
+  instead of inlining its type chain (which pulls postcss/lightningcss
+  CJS-style declarations that `rolldown-plugin-dts` can't reliably bundle).
+- Added `overrides.fflate: "0.8.2"` so `@arethetypeswrong/core@0.18.2`'s
+  built-in untar parser keeps working. `fflate@0.8.3` changed `Gunzip`
+  stream semantics in a way that breaks attw's tarball extraction
+  ([arethetypeswrong#258](https://github.com/arethetypeswrong/arethetypeswrong.github.io/issues/258)).
+
 ## [3.1.3] - 2026-05-24
 
 ### Fixed

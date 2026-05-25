@@ -317,7 +317,9 @@ export const inject = command('inject')
  * subcommands plus shell-completion generation.
  */
 export const app = cli('svg-to-ico')
-	.packageJson(pkg)
+	// `pkg.version` is bundled at build time via the `#pkg` subpath import.
+	// `.version()` is stable across all dreamcli versions, no patch required.
+	.version(pkg.version)
 	.description('Generate ICO favicons and inject <link> tags into HTML files')
 	.command(generate)
 	.command(inject)
