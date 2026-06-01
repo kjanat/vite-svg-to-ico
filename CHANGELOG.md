@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.5] - 2026-06-01
+
+### Fixed
+
+- CLI `generate --help` now shows `--out-dir`'s default as `.` instead of
+  embedding the absolute current working directory from the help invocation.
+  Runtime behavior is unchanged: omitting `--out-dir` writes to the directory
+  where `svg-to-ico generate` is executed.
+
 ## [3.1.4] - 2026-05-25
 
 ### Fixed
@@ -478,7 +487,13 @@ svgToIco({
 - Full TypeScript type exports
   (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.5...HEAD
+[3.1.5]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.4...v3.1.5
+[3.1.4]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.3...v3.1.4
+[3.1.3]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.2...v3.1.3
+[3.1.2]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.1...v3.1.2
+[3.1.1]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.0...v3.1.1
+[3.1.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.1...v3.0.0
 [2.3.1]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v2.2.0...v2.3.0

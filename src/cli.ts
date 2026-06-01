@@ -42,7 +42,6 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { cwd } from 'node:process';
 
 import { arg, cli, CLIError, command, flag } from '@kjanat/dreamcli';
 
@@ -117,8 +116,8 @@ export const generate = command('generate')
 	.flag('sizes', sizesFlag())
 	.flag(
 		'out-dir',
-		pathFlag().alias('d').default(cwd()).describe(
-			'Directory to write outputs into (resolved to absolute). Created if missing. '
+		pathFlag().alias('d').default('.').describe(
+			'Directory to write outputs into. Relative paths resolve from the current working directory. Created if missing. '
 				+ 'Defaults to the current working directory.',
 		),
 	)

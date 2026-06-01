@@ -1,13 +1,16 @@
+import { $ } from 'bun';
 import { describe, expect, it } from 'bun:test';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { cwd } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
 import { generate, inject } from '#internals/cli.ts';
 import { runCommand } from '@kjanat/dreamcli/testkit';
 
 const FIXTURE = resolve(import.meta.dirname, 'fixtures/test.svg');
+const CLI_ENTRY = resolve(import.meta.dirname, '../src/cli.ts');
 
 async function setupTmp(): Promise<string> {
 	return mkdtemp(join(tmpdir(), 'vite-svg-to-ico-cli-'));
@@ -34,6 +37,27 @@ async function withStubbedFetch<T>(stub: typeof globalThis.fetch, fn: () => Prom
 }
 
 describe('CLI: generate', () => {
+	it('documents the default out dir as the current directory, not a captured absolute path', async () => {
+		const result = await runCommand(generate, ['--help']);
+		expect(result.exitCode).toBe(0);
+
+		const help = result.stdout.join('\n');
+		const flatHelp = help.replace(/\s+/g, ' ');
+		expect(flatHelp).toContain('Defaults to the current working directory. (default: .)');
+		expect(help).toContain('(default: .)');
+		expect(help).not.toContain(cwd());
+	});
+
+	it('writes to the invocation cwd by default', async () => {
+		const dir = await setupTmp();
+		const result = await $`bun ${CLI_ENTRY} generate ${FIXTURE} --sizes 16`.cwd(dir).quiet().nothrow();
+		expect(result.exitCode).toBe(0);
+
+		const ico = await readFile(join(dir, 'favicon.ico'));
+		expect(ico.byteLength).toBeGreaterThan(0);
+		expect(await Bun.file(join(dir, 'public/favicon.ico')).exists()).toBe(false);
+	});
+
 	it('writes a multi-size favicon.ico to the out dir', async () => {
 		const dir = await setupTmp();
 		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32']);
