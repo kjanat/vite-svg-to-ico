@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.6] - 2026-06-24
+
+### Changed
+
+- Bump runtime dependencies: `sharp` `^0.34.5` → `^0.35` and
+  `@kjanat/dreamcli` `^2.1.0` → `^2.4`. No API or behavior changes; this
+  release exists so the updated dependency ranges reach published
+  consumers.
+
 ## [3.1.5] - 2026-06-01
 
 ### Fixed
@@ -487,7 +496,8 @@ svgToIco({
 - Full TypeScript type exports
   (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.5...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.6...HEAD
+[3.1.6]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.5...v3.1.6
 [3.1.5]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.4...v3.1.5
 [3.1.4]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.3...v3.1.4
 [3.1.3]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.2...v3.1.3
