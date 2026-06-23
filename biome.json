@@ -4,21 +4,22 @@
 		"enabled": true,
 		"clientKind": "git",
 		"useIgnoreFile": true,
-		"defaultBranch": "master"
+		"defaultBranch": "master",
+		"root": "."
 	},
 	"files": {
-		"includes": ["**", "!!**/dist", "!!tests/smoke/fixture"]
+		"includes": ["**", "!!**/dist", "!!tests/smoke/fixture", "!!*/worktrees/*"]
 	},
 	"formatter": { "enabled": false },
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true,
 			"complexity": { "recommended": true, "useLiteralKeys": "off" },
 			"performance": { "recommended": true },
 			"security": { "recommended": true },
 			"correctness": { "recommended": true, "noNodejsModules": "off" },
-			"suspicious": { "recommended": true }
+			"suspicious": { "recommended": true },
+			"a11y": { "recommended": true, "noSvgWithoutTitle": "off" }
 		},
 		"domains": {
 			"test": "recommended",
