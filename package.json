@@ -41,6 +41,8 @@
 		"build": "tsdown",
 		"dev": "tsdown --watch",
 		"fmt": "dprint fmt",
+		"fmt:cfg:up": "dprint config update -y",
+		"fmt:autofix": "dprint fmt --allow-no-files --diff --excludes .github",
 		"prepack": "bun --bun bd -l error",
 		"prepublishOnly": "run -s test typecheck",
 		"tar": "bun pm pack --quiet | awk 'NF{line=$0} END{print line}'",

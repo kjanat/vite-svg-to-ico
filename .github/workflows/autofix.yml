@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://www.schemastore.org/github-workflow.json
 ---
 name: autofix.ci
-run-name: "autofix.ci \"${{ github.event.pull_request.title || github.event.head_commit.message || github.event_name }}\" by @${{ github.actor }}"
+run-name: 'autofix.ci "${{ github.event.pull_request.title || github.event.head_commit.message || github.event_name }}" by @${{ github.actor }}'
 on:
   push: { branches: ["master"] }
   pull_request:
@@ -13,9 +13,10 @@ jobs:
     name: Format and autofix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+      - uses: kjanat/runner@master
       - uses: oven-sh/setup-bun@v2
-      - run: bun i --frozen-lockfile
-      - name: Format sources
-        run: bun fmt --allow-no-files --diff --excludes ".github"
+      - run: runner install fmt:autofix
+      - if: github.ref_name == 'master'
+        run: run fmt:cfg:up
       - uses: autofix-ci/action@v1
