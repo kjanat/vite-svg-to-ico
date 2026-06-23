@@ -10,11 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: kjanat/runner@master
       - uses: oven-sh/setup-bun@v2
 
-      - run: bun install --frozen-lockfile
-
-      - run: bun test
-
-      - run: bun run typecheck
-      - run: bun run lint
+      - run: runner install --frozen test typecheck lint
