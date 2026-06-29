@@ -77,8 +77,6 @@ export interface SpecResolution {
   injections: ResolvedInjection[];
   /** Union of every size mentioned in any spec — feed this to `generateSizedPngs`. */
   requiredSizes: IconSize[];
-  /** Whether at least one spec produces a source-copy (drives `inputBuffer` read in the plugin). */
-  needsSourceCopy: boolean;
   /** Whether at least one spec injects a tag (drives the no-op warning when transformIndexHtml never fires). */
   hasAnyInjection: boolean;
   /** Non-fatal configuration warnings (e.g. a spec that emits nothing and injects nothing). */
@@ -109,7 +107,6 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
   const injections: ResolvedInjection[] = [];
   const sizeSet = new Set<IconSize>();
   const warnings: string[] = [];
-  let needsSourceCopy = false;
 
   for (const [i, spec] of specs.entries()) {
     switch (spec.format) {
@@ -181,8 +178,6 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
         const isEmbed = spec.inject === 'embed';
         const filename = spec.filename ?? 'favicon.svg';
         const source: ResolvedFileSource = { kind: 'source-copy' };
-        // The source bytes are read whenever we emit the copy *or* embed it.
-        if (willEmit || isEmbed) needsSourceCopy = true;
         if (willEmit) files.push({ filename, mime: 'svg+xml', source });
         if (spec.inject) {
           injections.push({
@@ -204,7 +199,6 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
     files,
     injections,
     requiredSizes: [...sizeSet].sort((a, b) => a - b),
-    needsSourceCopy,
     hasAnyInjection: injections.length > 0,
     warnings,
   };

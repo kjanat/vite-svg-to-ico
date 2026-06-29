@@ -96,7 +96,7 @@ describe('integration: build', () => {
   });
 
   it('includeSource copies SVG to output', async () => {
-    const files = await runBuild({ input: 'icon.svg', emit: { source: true } });
+    const files = await runBuild({ input: 'icon.svg', emit: [{ format: 'ico' }, { format: 'svg' }] });
     expect(files.has('favicon.ico')).toBe(true);
     expect(files.has('icon.svg')).toBe(true);
 
@@ -107,14 +107,18 @@ describe('integration: build', () => {
   it('includeSource with custom name', async () => {
     const files = await runBuild({
       input: 'icon.svg',
-      emit: { source: { name: 'logo.svg' } },
+      emit: [{ format: 'ico' }, { format: 'svg', filename: 'logo.svg' }],
     });
     expect(files.has('logo.svg')).toBe(true);
     expect(files.has('icon.svg')).toBe(false);
   });
 
   it('emitSizes=true emits per-size PNGs', async () => {
-    const files = await runBuild({ input: 'icon.svg', sizes: [16, 32], emit: { sizes: true } });
+    const files = await runBuild({
+      input: 'icon.svg',
+      sizes: [16, 32],
+      emit: [{ format: 'ico' }, { format: 'png', sizes: [16, 32] }],
+    });
     expect(files.has('favicon.ico')).toBe(true);
     expect(files.has('favicon-16x16.png')).toBe(true);
     expect(files.has('favicon-32x32.png')).toBe(true);
@@ -128,7 +132,15 @@ describe('integration: build', () => {
   });
 
   it('emitSizes="ico" emits per-size ICOs', async () => {
-    const files = await runBuild({ input: 'icon.svg', sizes: [16, 32], emit: { sizes: 'ico' } });
+    const files = await runBuild({
+      input: 'icon.svg',
+      sizes: [16, 32],
+      emit: [
+        { format: 'ico' },
+        { format: 'ico', sizes: [16], filename: 'favicon-16x16.ico' },
+        { format: 'ico', sizes: [32], filename: 'favicon-32x32.ico' },
+      ],
+    });
     expect(files.has('favicon-16x16.ico')).toBe(true);
     expect(files.has('favicon-32x32.ico')).toBe(true);
     // Should NOT have PNGs
@@ -141,7 +153,15 @@ describe('integration: build', () => {
   });
 
   it('emitSizes="both" emits PNGs and ICOs', async () => {
-    const files = await runBuild({ input: 'icon.svg', sizes: [32], emit: { sizes: 'both' } });
+    const files = await runBuild({
+      input: 'icon.svg',
+      sizes: [32],
+      emit: [
+        { format: 'ico' },
+        { format: 'png', sizes: [32] },
+        { format: 'ico', sizes: [32], filename: 'favicon-32x32.ico' },
+      ],
+    });
     expect(files.has('favicon-32x32.png')).toBe(true);
     expect(files.has('favicon-32x32.ico')).toBe(true);
   });
@@ -153,7 +173,7 @@ describe('integration: build', () => {
     copyFileSync(join(FIXTURES, 'index.html.inject'), join(FIXTURES, 'index.html'));
 
     try {
-      const files = await runBuild({ input: 'icon.svg', emit: { inject: 'minimal' } });
+      const files = await runBuild({ input: 'icon.svg', emit: [{ format: 'ico', inject: true }] });
       const html = files.get('index.html')?.toString() ?? '';
       expect(html).toContain('rel="icon"');
       expect(html).toContain('href="/favicon.ico"');
@@ -172,7 +192,11 @@ describe('integration: build', () => {
     try {
       const files = await runBuild({
         input: 'icon.svg',
-        emit: { inject: 'full', sizes: 'png', source: true },
+        emit: [
+          { format: 'ico', inject: true },
+          { format: 'svg', inject: true },
+          { format: 'png', sizes: [16, 32], inject: true },
+        ],
         sizes: [16, 32],
       });
       const html = files.get('index.html')?.toString() ?? '';
@@ -191,7 +215,7 @@ describe('integration: build', () => {
 
   it('inject strips existing icon links and replaces', async () => {
     // index.html has an existing <link rel="icon" href="/favicon.ico" />
-    const files = await runBuild({ input: 'icon.svg', emit: { inject: 'minimal' } });
+    const files = await runBuild({ input: 'icon.svg', emit: [{ format: 'ico', inject: true }] });
     const html = files.get('index.html')?.toString() ?? '';
 
     // Should have exactly one ico link (injected), not a duplicate
@@ -297,7 +321,11 @@ describe('integration: dev server', () => {
         svgToIco({
           input: 'icon.svg',
           sizes: [16, 32],
-          emit: { source: true, sizes: true, inject: 'full' },
+          emit: [
+            { format: 'ico', inject: true },
+            { format: 'svg', inject: true },
+            { format: 'png', sizes: [16, 32], inject: true },
+          ],
         }),
       ],
     });
@@ -391,7 +419,7 @@ describe('integration: dev option', () => {
       root: FIXTURES,
       logLevel: 'silent',
       server: { port: 0, strictPort: false },
-      plugins: [svgToIco({ input: 'icon.svg', emit: { inject: 'minimal' }, dev: { injection: 'shim' } })],
+      plugins: [svgToIco({ input: 'icon.svg', emit: [{ format: 'ico', inject: true }], dev: { injection: 'shim' } })],
     });
     await srv.listen();
     try {
@@ -412,7 +440,7 @@ describe('integration: dev option', () => {
       root: FIXTURES,
       logLevel: 'silent',
       server: { port: 0, strictPort: false },
-      plugins: [svgToIco({ input: 'icon.svg', emit: { inject: 'minimal' }, dev: { hmr: false } })],
+      plugins: [svgToIco({ input: 'icon.svg', emit: [{ format: 'ico', inject: true }], dev: { hmr: false } })],
     });
     await srv.listen();
     try {
@@ -432,7 +460,13 @@ describe('integration: dev option', () => {
       root: FIXTURES,
       logLevel: 'silent',
       server: { port: 0, strictPort: false },
-      plugins: [svgToIco({ input: 'icon.svg', emit: { inject: 'minimal' }, dev: { injection: 'shim', hmr: false } })],
+      plugins: [
+        svgToIco({
+          input: 'icon.svg',
+          emit: [{ format: 'ico', inject: true }],
+          dev: { injection: 'shim', hmr: false },
+        }),
+      ],
     });
     await srv.listen();
     try {

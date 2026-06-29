@@ -17,9 +17,6 @@ export interface PluginOptions {
    */
   input: string | URL;
   /** Default ICO filename, used as a fallback when an {@link IcoSpec} omits `filename`.
-   *
-   * @deprecated In v3, prefer specifying `filename` on an {@link IcoSpec}
-   *   inside the `emit` array. Retained for the v2 shim and as a fallback.
    * @default 'favicon.ico'
    */
   output?: string;
@@ -29,10 +26,8 @@ export interface PluginOptions {
    * Must be integers in the range 1–256 per the ICO spec.
    * @default [16, 32, 48]
    */
-  sizes?: IconSize | IconSize[];
-  /** What this plugin emits and how it injects tags.
-   *
-   * **v3 shape** — an array of per-format specs (recommended):
+  sizes?: number | number[];
+  /** What this plugin emits and how it injects tags — an array of per-format specs:
    *
    * ```ts
    * emit: [
@@ -42,14 +37,10 @@ export interface PluginOptions {
    * ]
    * ```
    *
-   * **v2 shape** — `{ source, sizes, inject }` object. Still accepted; the
-   *   plugin translates it to v3 internally and logs a one-time deprecation
-   *   warning. Will be removed in v4.
-   *
    * Omitted entirely → defaults to `[{ format: 'ico' }]` (one combined
    *   favicon.ico using top-level `sizes`).
    */
-  emit?: EmitSpec[] | LegacyEmitOptions;
+  emit?: EmitSpec[];
   /** Sharp image processing options. */
   sharp?: SharpOptions;
   /** Control dev-server behavior.
@@ -154,52 +145,6 @@ export interface SvgSpec {
   encoding?: DataUriEncoding;
 }
 
-/** v2 shape kept for backward compatibility; will be removed in v4. Use {@link EmitSpec}[] instead.
- *
- * @deprecated Use the v3 {@link EmitSpec}[] form on {@link PluginOptions.emit}.
- */
-export interface LegacyEmitOptions {
-  /** Copy the source file to output alongside the ICO.
-   *
-   * Pass `true` to emit with the original basename, or an object to customise.
-   * @default false
-   */
-  source?: boolean | { name?: string; enabled?: boolean };
-  /** Emit individual per-size files alongside the combined ICO.
-   *
-   * - `false` — only emit combined ICO (default)
-   * - `true` | `'png'` — emit PNG files for each size
-   * - `'ico'` — emit single-entry ICO files per size
-   * - `'both'` — emit both PNG and ICO per size
-   * @default false
-   */
-  sizes?: boolean | EmitSizesFormat;
-  /** Inject `<link>` tags for generated favicons into `index.html`.
-   *
-   * - `true` | `'minimal'` — ICO + SVG source (if SVG input + source emitted)
-   * - `'full'` — all emitted files (ICO, SVG, per-size PNGs)
-   * - `false` — no injection
-   * @default false
-   */
-  inject?: boolean | InjectMode;
-}
-
-/** @deprecated Old name preserved for the v2 type export. Use {@link LegacyEmitOptions}. */
-export type EmitOptions = LegacyEmitOptions;
-
-/** Type guard: distinguishes v3 {@link EmitSpec}[] from v2 {@link LegacyEmitOptions} object. */
-export function isLegacyEmit(emit: unknown): emit is LegacyEmitOptions {
-  return emit !== null && typeof emit === 'object' && !Array.isArray(emit);
-}
-
-/** Resolved emit configuration after normalization: always an {@link EmitSpec}[] with no `undefined` slots. */
-export interface NormalizedEmit {
-  /** Resolved specs in execution order. */
-  specs: EmitSpec[];
-  /** Whether the input used the v2 {@link LegacyEmitOptions} shape (drives one-time deprecation warning). */
-  wasLegacy: boolean;
-}
-
 /** Sharp image processing options. */
 export interface SharpOptions {
   /** Apply maximum PNG compression (level 9 + adaptive filtering).
@@ -229,21 +174,6 @@ export interface SharpOptions {
 
 /** Common ICO pixel dimensions with IDE autocompletion; any integer 1–256 is accepted. */
 export type IconSize = 16 | 24 | 32 | 48 | 64 | 128 | 256 | (number & {});
-
-/** Fine-grained control for emitting the source SVG alongside the ICO. */
-export interface IncludeSourceOptions {
-  /** Override the output filename for the emitted source.
-   * @default basename(input) */
-  name?: string;
-  /** Whether to emit the source file.
-   * @default true */
-  enabled?: boolean;
-}
-
-/** Valid string values for {@link PluginOptions.emitSizes}. */
-export const EMIT_SIZES_FORMATS = ['png', 'ico', 'both'] as const;
-/** Format for individually-emitted per-size files. */
-export type EmitSizesFormat = (typeof EMIT_SIZES_FORMATS)[number];
 
 /** Valid string values for {@link PluginOptions.dev} injection mode. */
 export const DEV_INJECTIONS = ['transform', 'shim'] as const;

@@ -1,48 +1,33 @@
 import { resolve } from 'node:path';
 
+import { parseConfig } from '#config';
+import { toDataUri } from '#dataUri';
 import { INJECT_ICON_LINK_RE } from '#injectHtml';
 import { packIco } from '#ico';
+import { DEBUG, Instrumentation } from '#instrumentation';
+import { loadInputBytes } from '#loadInput';
 import type { GenerateOptions, SizedPng } from '#raster';
 import { generateSizedPngs } from '#raster';
-import { DEBUG, Instrumentation } from '#instrumentation';
-import { inputExtname, isHttpUrl, loadInputBytes, normalizeInput } from '#loadInput';
-import { normalizeEmit } from '#normalizeEmit';
-import { repository } from '#pkg' with { type: 'json' };
-import { toDataUri } from '#dataUri';
 import { type ResolvedFile, type ResolvedInjection, resolveSpecs } from '#resolveSpecs';
 import type {
   DevInjection,
   DevOptions,
   EmitFormat,
-  EmitSizesFormat,
   EmitSpec,
   IconSize,
   IcoSpec,
-  IncludeSourceOptions,
   InjectMode,
-  NormalizedEmit,
   PluginOptions,
   PngSpec,
   SharpOptions,
   SvgSpec,
 } from '#types';
-import type { EmitOptions, LegacyEmitOptions } from '#types'; // Re-exported for v2 compatibility.
-import {
-  DEV_INJECTIONS,
-  EMIT_FORMATS,
-  EMIT_SIZES_FORMATS,
-  INJECT_MODES,
-  SUPPORTED_EXTENSIONS,
-  SVG_EXTENSIONS,
-} from '#types';
-import { isLegacyEmit } from '#types';
 
-import { osc8, packageRepositoryUrl } from '@kjanat/dreamcli';
 import type { Connect, HtmlTagDescriptor, Plugin } from 'vite';
 
 /**
  * Public type surface re-exported from `./types.ts` (plus `GenerateOptions`
- * from `./ico.ts`). Each type is documented at its definition site; this
+ * from `./raster.ts`). Each type is documented at its definition site; this
  * manifest is the package's external import target for consumers that need
  * to spell out option/spec shapes.
  */
@@ -50,16 +35,11 @@ export type {
   DevInjection,
   DevOptions,
   EmitFormat,
-  EmitOptions,
-  EmitSizesFormat,
   EmitSpec,
   GenerateOptions,
   IconSize,
   IcoSpec,
-  IncludeSourceOptions,
   InjectMode,
-  LegacyEmitOptions,
-  NormalizedEmit,
   PluginOptions,
   PngSpec,
   SharpOptions,
@@ -110,41 +90,19 @@ export type {
  * ```
  */
 function svgToIco(opts: PluginOptions): Plugin[] {
+  // The single parse boundary — validates eagerly and throws on bad config.
+  const cfg = parseConfig(opts);
+  const { input, inputIsUrl, inputFormat, sourceMimeType, optimize } = cfg;
+  const resizeOpts = cfg.resize;
+  const pngOpts = cfg.png;
+  const devOpts = cfg.dev;
+
+  const resolution = resolveSpecs(cfg.specs, { inputFormat });
+
   let generatedPngs: SizedPng[] | null = null;
   let cachedInputBuffer: Buffer | null = null;
   let logger: import('vite').Logger | null = null;
   let buildTransformIndexHtmlCalled = false;
-  let legacyWarned = false;
-
-  const { input: rawInput, sizes: rawSizes = [16, 32, 48], sharp: sharpOpts, dev: rawDev = true } = opts;
-
-  // Collapse URL instances and file:// strings to a canonical path-or-http string
-  // up front; everything downstream operates on `input` as a string.
-  const input = rawInput == null ? '' : normalizeInput(rawInput);
-
-  const optimize = sharpOpts?.optimize ?? true;
-  const resizeOpts = sharpOpts?.resize;
-  const pngOpts = sharpOpts?.png;
-  const sizes = Array.isArray(rawSizes) ? rawSizes : [rawSizes];
-
-  // --- dev normalization ---
-  const devDefaults = { enabled: true, injection: 'transform' as DevInjection, hmr: true };
-  const devOpts: Required<DevOptions> =
-    typeof rawDev === 'boolean' ? { ...devDefaults, enabled: rawDev } : { ...devDefaults, ...rawDev };
-
-  // --- input format detection ---
-  const inputIsUrl = isHttpUrl(input);
-  const inputExt = inputExtname(input);
-  const inputFormat = SVG_EXTENSIONS.has(inputExt) ? 'svg' : inputExt.replace('.', '');
-
-  /** Normalize extensions to correct MIME subtypes. */
-  const MIME_OVERRIDES: Record<string, string> = { jpg: 'jpeg', tif: 'tiff' };
-  const mimeFormat = MIME_OVERRIDES[inputFormat] ?? inputFormat;
-  const sourceMimeType = inputFormat === 'svg' ? 'image/svg+xml' : `image/${mimeFormat}`;
-
-  // --- emit normalization → spec array ---
-  const { specs, wasLegacy } = normalizeEmit(opts, sizes);
-  const resolution = resolveSpecs(specs, { inputFormat });
 
   /** Resolved absolute path to the input file, set in `configResolved`. */
   let resolvedInput = input;
@@ -320,18 +278,6 @@ if (import.meta.hot) {
     return mime === 'svg+xml' ? sourceMimeType : `image/${mime}`;
   }
 
-  /** Log the v2 deprecation warning at most once per plugin instance. */
-  function warnIfLegacy(): void {
-    if (!wasLegacy || legacyWarned) return;
-    legacyWarned = true;
-    logger?.warn?.(
-      `[svg-to-ico] The \`emit: { source, sizes, inject }\` object shape is deprecated and will be removed in v4. Migrate to the v3 array form: \`emit: [{ format: 'ico', ... }, { format: 'png', ... }]\`. See ${osc8(
-        `${packageRepositoryUrl({ repository })}/blob/master/CHANGELOG.md`,
-        'CHANGELOG.md',
-      )} for the migration guide.`,
-    );
-  }
-
   return [
     {
       name: 'svg-to-ico:config',
@@ -339,100 +285,8 @@ if (import.meta.hot) {
 
       configResolved(config) {
         logger = config.logger;
-        warnIfLegacy();
-
-        if (!input) {
-          throw new Error('[svg-to-ico] `input` must be a non-empty string');
-        }
-        if (!SUPPORTED_EXTENSIONS.has(inputExt)) {
-          throw new Error(
-            `[svg-to-ico] Unsupported input format: "${inputExt}". Supported: ${[...SUPPORTED_EXTENSIONS].join(', ')}`,
-          );
-        }
-        if (sizes.length === 0) {
-          throw new Error('[svg-to-ico] `sizes` must contain at least one value');
-        }
-
-        // Validate top-level sizes 1–256.
-        const invalidTop = sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
-        if (invalidTop.length > 0) {
-          throw new Error(`[svg-to-ico] Invalid sizes: ${invalidTop.join(', ')}. Must be integers 1–256.`);
-        }
-
-        // Validate every spec.
-        for (const [i, spec] of specs.entries()) {
-          if (!(EMIT_FORMATS as readonly string[]).includes(spec.format)) {
-            throw new Error(
-              `[svg-to-ico] emit[${i}].format invalid: "${spec.format}". Must be one of ${EMIT_FORMATS.map(
-                (f) => `'${f}'`,
-              ).join(', ')}.`,
-            );
-          }
-          if (spec.format === 'ico' && spec.sizes) {
-            if (spec.sizes.length === 0) {
-              throw new Error(`[svg-to-ico] emit[${i}] (ico) requires \`sizes\` with at least one value.`);
-            }
-            const bad = spec.sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 256);
-            if (bad.length > 0) {
-              throw new Error(`[svg-to-ico] emit[${i}].sizes invalid: ${bad.join(', ')}. Must be integers 1–256.`);
-            }
-          }
-          if (spec.format === 'png') {
-            if (!spec.sizes || spec.sizes.length === 0) {
-              throw new Error(`[svg-to-ico] emit[${i}] (png) requires \`sizes\` with at least one value.`);
-            }
-            // PNG specs are standalone files — they don't share ICO's 8-bit
-            // width/height field, so the 1–256 cap doesn't apply. Cap at 4096
-            // as a sanity check (covers PWA manifest 512, Android 192, retina
-            // 1024, etc. while catching obvious typos like 5120).
-            const bad = spec.sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > 4096);
-            if (bad.length > 0) {
-              throw new Error(`[svg-to-ico] emit[${i}].sizes invalid: ${bad.join(', ')}. Must be integers 1–4096.`);
-            }
-            if (typeof spec.inject === 'object' && spec.inject !== null && spec.inject.sizes) {
-              const allowed = new Set(spec.sizes);
-              const bad = spec.inject.sizes.filter((s) => !allowed.has(s));
-              if (bad.length > 0) {
-                throw new Error(
-                  `[svg-to-ico] emit[${i}].inject.sizes contains values not in spec.sizes: ${bad.join(', ')}. ` +
-                    `Must be a subset of [${spec.sizes.join(', ')}].`,
-                );
-              }
-            }
-          }
-        }
-
-        // Legacy shape: keep v2-era string validation for nicer error messages.
-        if (wasLegacy && isLegacyEmit(opts.emit)) {
-          const legacy = opts.emit;
-          if (typeof legacy.sizes === 'string' && !(EMIT_SIZES_FORMATS as readonly string[]).includes(legacy.sizes)) {
-            throw new Error(
-              `[svg-to-ico] Invalid emitSizes value: "${legacy.sizes}". Must be boolean, ${EMIT_SIZES_FORMATS.map(
-                (f) => `'${f}'`,
-              ).join(', ')}.`,
-            );
-          }
-          if (typeof legacy.inject === 'string' && !(INJECT_MODES as readonly string[]).includes(legacy.inject)) {
-            throw new Error(
-              `[svg-to-ico] Invalid inject value: "${legacy.inject}". Must be boolean, ${INJECT_MODES.map(
-                (m) => `'${m}'`,
-              ).join(', ')}.`,
-            );
-          }
-        }
-
-        if (
-          typeof rawDev === 'object' &&
-          rawDev.injection !== undefined &&
-          !(DEV_INJECTIONS as readonly string[]).includes(rawDev.injection)
-        ) {
-          throw new Error(
-            `[svg-to-ico] Invalid dev.injection value: "${rawDev.injection}". Must be ${DEV_INJECTIONS.map(
-              (m) => `'${m}'`,
-            ).join(', ')}.`,
-          );
-        }
-
+        // All option validation happened in `parseConfig` at factory time; this
+        // hook only applies Vite's resolved `root`/`base` and surfaces warnings.
         resolvedInput = inputIsUrl ? input : resolve(config.root, input);
         resolvedBase = config.base;
 
