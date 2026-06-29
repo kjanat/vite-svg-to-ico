@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Embed favicons inline as `data:` URIs instead of (or alongside) emitting
+  files. Each `ico`/`png`/`svg` emit spec gains two orthogonal knobs:
+  - `inject: 'embed'` — the injected `<link>`'s `href` carries the image
+    bytes as a `data:` URI (base64 for binary, configurable for SVG) rather
+    than pointing at a file.
+  - `emit: false` — skip writing the file to disk; only meaningful with
+    `inject: 'embed'` (embed without a file). Defaults to `true`.
+  - `SvgSpec.encoding: 'base64' | 'utf8'` — `utf8` produces a smaller,
+    human-readable `data:image/svg+xml,…` URI. Defaults to `'base64'`.
+  - PNG specs also accept `{ sizes, embed: true }` to inline a subset.
+
+  Data-URI hrefs are never cache-busted (a query param would corrupt the
+  bytes), and the dev HMR client skips them. A spec that writes nothing and
+  injects nothing now emits a one-time config warning.
+
+- `svg-to-ico inject` gained matching `--embed` / `--encoding` / `--asset-dir`
+  flags: inline the referenced ICO (and SVG `--source`) straight into the
+  rewritten HTML as `data:` URIs instead of URL `<link href>`s. Assets are
+  read from `--asset-dir` (default: each HTML file's own directory).
+
 ### Changed
 
 - CLI help/deprecation output now renders OSC 8 terminal hyperlinks

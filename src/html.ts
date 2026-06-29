@@ -10,6 +10,13 @@ export interface SizedFileInfo {
   format: string;
 }
 
+/**
+ * Resolve a favicon file to an inline `data:` URI, or `null` to keep the
+ * URL href. Called once per `<link>`; the implementation (which reads bytes
+ * and encodes them) is injected so {@link buildFaviconTags} stays pure.
+ */
+export type EmbedResolver = (file: { name: string; mime: string }) => string | null;
+
 /** Inputs for building favicon `<link>` tag descriptors. */
 export interface FaviconTagOptions {
   output: string;
@@ -22,6 +29,13 @@ export interface FaviconTagOptions {
   sizedFiles?: SizedFileInfo[];
   /** Vite resolved `base` path (e.g. `'/'`, `'#'`, `'/repo/'`). Defaults to `'/'`. */
   base?: string;
+  /**
+   * When provided, each `<link>`'s `href` is resolved through this function: a
+   * returned string inlines the bytes as a `data:` URI, `null` keeps the
+   * `base`-prefixed URL. Lets the CLI embed favicons without coupling this pure
+   * builder to the filesystem.
+   */
+  embed?: EmbedResolver;
 }
 
 /**
@@ -38,6 +52,8 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
   const baseRaw = opts.base ?? '/';
   const base = baseRaw.endsWith('/') ? baseRaw : `${baseRaw}/`;
   const withBase = (name: string) => `${base}${name.replace(/^\/+/, '')}`;
+  // Inline as a data URI when `embed` opts in for this file, else URL href.
+  const hrefFor = (name: string, mime: string) => opts.embed?.({ name, mime }) ?? withBase(name);
 
   // 1. ICO — always
   tags.push({
@@ -45,7 +61,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
     attrs: {
       rel: 'icon',
       type: 'image/x-icon',
-      href: withBase(opts.output),
+      href: hrefFor(opts.output, 'image/x-icon'),
       sizes: opts.sizes.map((s) => `${s}x${s}`).join(' '),
     },
     injectTo: 'head',
@@ -58,7 +74,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
       attrs: {
         rel: 'icon',
         type: 'image/svg+xml',
-        href: withBase(opts.sourceName),
+        href: hrefFor(opts.sourceName, 'image/svg+xml'),
         sizes: 'any',
       },
       injectTo: 'head',
@@ -74,7 +90,7 @@ export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
           rel: 'icon',
           type: `image/${file.format}`,
           sizes: `${file.size}x${file.size}`,
-          href: withBase(file.name),
+          href: hrefFor(file.name, `image/${file.format}`),
         },
         injectTo: 'head',
       });

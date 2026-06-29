@@ -9,8 +9,6 @@ import { unwrap } from './_helpers.ts';
 const FIXTURES = resolve(import.meta.dirname, 'fixtures/basic-project');
 const ICON_SVG = join(FIXTURES, 'icon.svg');
 
-// ---------- helpers ----------
-
 /** Build a vite project in-memory and return output files as a map of fileName → source. */
 async function runBuild(pluginOpts: Parameters<typeof svgToIco>[0], viteOverrides: Partial<InlineConfig> = {}) {
   const outDir = join(FIXTURES, `dist-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
@@ -59,8 +57,6 @@ async function devFetch(server: ViteDevServer, path: string): Promise<Response> 
   const url = `http://localhost:${address.port}${path}`;
   return fetch(url);
 }
-
-// ---------- Build integration tests ----------
 
 describe('integration: build', () => {
   it('emits favicon.ico with default options', async () => {
@@ -204,6 +200,54 @@ describe('integration: build', () => {
     expect(unwrap(icoMatches).length).toBe(1);
   });
 
+  it('embeds the SVG inline as a data: URI (emit:false) and writes no svg file', async () => {
+    const originalHtml = readFileSync(join(FIXTURES, 'index.html')).toString();
+    copyFileSync(join(FIXTURES, 'index.html.inject'), join(FIXTURES, 'index.html'));
+
+    try {
+      const files = await runBuild({
+        input: 'icon.svg',
+        emit: [
+          { format: 'ico', sizes: [16, 32] }, // emit-only fallback, no <link>
+          { format: 'svg', emit: false, inject: 'embed', encoding: 'utf8' },
+        ],
+      });
+      const html = files.get('index.html')?.toString() ?? '';
+
+      // SVG inlined as a utf8 data URI, not a file reference.
+      expect(html).toContain('href="data:image/svg+xml,');
+      expect(html).toContain('image/svg+xml');
+      // emit:false → no SVG file written; ICO still emitted as the silent fallback.
+      expect(files.has('icon.svg')).toBe(false);
+      expect(files.has('favicon.svg')).toBe(false);
+      expect(files.has('favicon.ico')).toBe(true);
+      // Data URIs must never be cache-busted (a query param corrupts the bytes).
+      const dataHref = unwrap(html.match(/href="(data:[^"]*)"/))[1];
+      expect(dataHref).not.toContain('?v=');
+      expect(dataHref).not.toContain('&v=');
+    } finally {
+      Bun.write(join(FIXTURES, 'index.html'), originalHtml);
+    }
+  });
+
+  it('embeds the ICO inline as a base64 data: URI alongside the emitted file', async () => {
+    const originalHtml = readFileSync(join(FIXTURES, 'index.html')).toString();
+    copyFileSync(join(FIXTURES, 'index.html.inject'), join(FIXTURES, 'index.html'));
+
+    try {
+      const files = await runBuild({
+        input: 'icon.svg',
+        emit: [{ format: 'ico', sizes: [16], inject: 'embed' }],
+      });
+      const html = files.get('index.html')?.toString() ?? '';
+      expect(html).toContain('href="data:image/x-icon;base64,');
+      // inject:'embed' with default emit → file still on disk ("both").
+      expect(files.has('favicon.ico')).toBe(true);
+    } finally {
+      Bun.write(join(FIXTURES, 'index.html'), originalHtml);
+    }
+  });
+
   it('works with PNG input', async () => {
     // Generate a PNG fixture from the SVG first
     const sharp = (await import('sharp')).default;
@@ -240,8 +284,6 @@ describe('integration: build', () => {
     expect(ico.readUInt16LE(4)).toBe(1);
   });
 });
-
-// ---------- Dev server integration tests ----------
 
 describe('integration: dev server', () => {
   let server: ViteDevServer;

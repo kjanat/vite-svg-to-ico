@@ -76,8 +76,22 @@ export interface IcoSpec {
   sizes?: IconSize[];
   /** Output filename for this ICO. Falls back to {@link PluginOptions.output} or `'favicon.ico'`. */
   filename?: string;
-  /** Inject a `<link rel="icon" type="image/x-icon">` tag pointing at this ICO. @default false */
-  inject?: boolean;
+  /** Write the ICO file to disk (or serve it in dev).
+   *
+   * Set `false` to skip the file entirely — only meaningful alongside
+   * `inject: 'embed'`, which inlines the bytes into the HTML instead.
+   * @default true */
+  emit?: boolean;
+  /** Inject a `<link rel="icon" type="image/x-icon">` tag for this ICO.
+   *
+   * - `false` — no tag (default). Browsers still auto-request `/favicon.ico`,
+   *   so an emit-only ICO already works as a silent fallback.
+   * - `true` — tag whose `href` points at the emitted file.
+   * - `'embed'` — tag whose `href` inlines the ICO bytes as a base64
+   *   `data:` URI (no file reference). Combine with `emit: false` to embed
+   *   without writing a file, or `emit: true` to do both.
+   * @default false */
+  inject?: boolean | 'embed';
 }
 
 /** Emit one PNG file per requested size. */
@@ -91,12 +105,23 @@ export interface PngSpec {
   sizes: IconSize[];
   /** Filename template using `{size}` as a placeholder. @default `'favicon-{size}x{size}.png'` */
   filenameTemplate?: string;
+  /** Write the PNG files to disk (or serve them in dev).
+   *
+   * Set `false` to skip the files — only meaningful with `inject: 'embed'`
+   * (or `{ embed: true }`), which inlines each PNG as a base64 `data:` URI.
+   * Note: inlining icon-sized PNGs defeats browser caching; prefer URL links
+   * unless you specifically want a self-contained document.
+   * @default true */
+  emit?: boolean;
   /** Inject `<link rel="icon" type="image/png">` tags.
    *
-   * - `true` — inject one tag per size in {@link sizes}.
    * - `false` — inject nothing (default).
-   * - `{ sizes }` — inject tags only for the listed sizes (must be a subset of {@link sizes}). */
-  inject?: boolean | { sizes?: IconSize[] };
+   * - `true` — one URL tag per size in {@link sizes}.
+   * - `'embed'` — one base64 `data:` URI tag per size in {@link sizes}.
+   * - `{ sizes }` — tags only for the listed sizes (must be a subset of
+   *   {@link sizes}). Omit `sizes` to target every size.
+   * - `{ sizes, embed: true }` — as above, but inlined as `data:` URIs. */
+  inject?: boolean | 'embed' | { sizes?: IconSize[]; embed?: boolean };
 }
 
 /** Emit a copy of the source image (only meaningful when input is an SVG). */
@@ -104,8 +129,29 @@ export interface SvgSpec {
   format: 'svg';
   /** Output filename for the copied source. Defaults to `basename(input)`. */
   filename?: string;
-  /** Inject a `<link rel="icon" type="image/svg+xml">` tag pointing at this file. @default false */
-  inject?: boolean;
+  /** Write the SVG file to disk (or serve it in dev).
+   *
+   * Set `false` to skip the file — only meaningful with `inject: 'embed'`,
+   * which inlines the SVG into the HTML instead.
+   * @default true */
+  emit?: boolean;
+  /** Inject a `<link rel="icon" type="image/svg+xml">` tag for this SVG.
+   *
+   * - `false` — no tag (default).
+   * - `true` — tag whose `href` points at the emitted file.
+   * - `'embed'` — tag whose `href` inlines the SVG as a `data:` URI (see
+   *   {@link encoding}). Combine with `emit: false` to embed without writing
+   *   a file ("all the way in there"), or `emit: true` to do both.
+   * @default false */
+  inject?: boolean | 'embed';
+  /** Encoding used when `inject: 'embed'`.
+   *
+   * - `'base64'` (default) — `data:image/svg+xml;base64,…`. Opaque, uniform
+   *   with binary formats, ~33% larger than the source.
+   * - `'utf8'` — `data:image/svg+xml,…` with minimal percent-escaping. Keeps
+   *   the markup human-readable and is typically smaller than base64.
+   * @default 'base64' */
+  encoding?: DataUriEncoding;
 }
 
 /** v2 shape kept for backward compatibility; will be removed in v4. Use {@link EmitSpec}[] instead.
@@ -222,6 +268,11 @@ export interface DevOptions {
 export const INJECT_MODES = ['minimal', 'full'] as const;
 /** Mode for HTML `<link>` tag injection. */
 export type InjectMode = (typeof INJECT_MODES)[number];
+
+/** Valid encodings for an embedded (`inject: 'embed'`) favicon `data:` URI. */
+export const DATA_URI_ENCODINGS = ['base64', 'utf8'] as const;
+/** How embedded favicon bytes are encoded into a `data:` URI. See {@link SvgSpec.encoding}. */
+export type DataUriEncoding = (typeof DATA_URI_ENCODINGS)[number];
 
 /** Supported input image formats (sharp-compatible file extensions including the leading dot). */
 export const SUPPORTED_EXTENSIONS = new Set([

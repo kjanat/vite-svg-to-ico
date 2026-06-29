@@ -1,7 +1,7 @@
 { // git ls-remote "https://github.com/kjanat/kjanat.git" HEAD | awk '{print substr($1, 1, 8)}' | xargs -r -I{} sed -i -E 's#(github\.com/kjanat/kjanat/raw/)[0-9a-zA-Z]{4,40}(/configs/dprint\.remote\.json)#\1{}\2#g' .dprint.jsonc
 	"lineWidth": 120,
 	"extends": "https://github.com/kjanat/kjanat/raw/e5f1f678/configs/dprint.remote.json",
-	"excludes": [".github/workflows/capture.yml", ".github/actions/capture/action.yml", "**/tests/fixtures"],
+	"excludes": ["tests/fixtures", "tests/*/fixture"],
 	"malva": { "useTabs": false },
 	"markup": {
 		"indentWidth": 2,

@@ -7,7 +7,8 @@ import { DEBUG, Instrumentation } from '#instrumentation';
 import { inputExtname, isHttpUrl, loadInputBytes, normalizeInput } from '#loadInput';
 import { normalizeEmit } from '#normalizeEmit';
 import { repository } from '#pkg' with { type: 'json' };
-import { type ResolvedFile, resolveSpecs } from '#resolveSpecs';
+import { toDataUri } from '#dataUri';
+import { type ResolvedFile, type ResolvedInjection, resolveSpecs } from '#resolveSpecs';
 import type {
   DevInjection,
   DevOptions,
@@ -162,10 +163,25 @@ function svgToIco(opts: PluginOptions): Plugin[] {
   /** Matches `<link>` tags whose `rel` contains `icon` (covers `icon`, `shortcut icon`, `apple-touch-icon`). */
   const ICON_LINK_RE = /(<link\b[^>]*\brel\s*=\s*["'][^"']*icon[^"']*["'][^>]*\bhref\s*=\s*["'])([^"']+)(["'][^>]*>)/gi;
 
-  /** Apply cache-bust param to a href string. */
+  /** Apply cache-bust param to a href string. `data:` URIs are returned untouched — a query param would corrupt inline bytes. */
   function cacheBust(href: string): string {
+    if (href.startsWith('data:')) return href;
     const sep = href.includes('?') ? '&' : '?';
     return `${href}${sep}v=${cacheId}`;
+  }
+
+  /** Cache of resolved `data:` URIs, keyed by the embed injection that owns them. Cleared on HMR. */
+  const embedCache = new Map<ResolvedInjection, string>();
+
+  /** Produce (and memoize) the `data:` URI for an embed injection from the same bytes the emitter uses. */
+  async function embedHref(inj: ResolvedInjection): Promise<string> {
+    const cached = embedCache.get(inj);
+    if (cached !== undefined) return cached;
+    if (inj.href.kind !== 'embed') throw new Error('[svg-to-ico] internal: embedHref called on a non-embed injection');
+    const bytes = await produce({ filename: '', mime: '', source: inj.href.source });
+    const uri = toDataUri(bytes, inj.type, inj.href.encoding);
+    embedCache.set(inj, uri);
+    return uri;
   }
 
   /** Prepend `base` to a filename (handles missing/trailing slashes). */
@@ -174,16 +190,30 @@ function svgToIco(opts: PluginOptions): Plugin[] {
     return `${b}${filename.replace(/^\/+/, '')}`;
   }
 
-  /** Build favicon `<link>` tag descriptors from resolved injections. */
-  function faviconTags(options?: { base?: string; applyCacheBust?: boolean }): HtmlTagDescriptor[] {
+  /**
+   * Build favicon `<link>` tag descriptors from resolved injections.
+   *
+   * Async because `embed` injections inline the image bytes as a `data:` URI,
+   * which means producing those bytes (sharp / file read). File injections
+   * resolve synchronously to a `base`-prefixed, optionally cache-busted href.
+   */
+  async function faviconTags(options?: { base?: string; applyCacheBust?: boolean }): Promise<HtmlTagDescriptor[]> {
     const base = options?.base ?? '/';
     const bust = options?.applyCacheBust ?? false;
-    return resolution.injections.map((inj) => {
-      const href = bust ? cacheBust(withBase(base, inj.filename)) : withBase(base, inj.filename);
+    const tags: HtmlTagDescriptor[] = [];
+    for (const inj of resolution.injections) {
+      // Embedded bytes carry no base/cache-bust — the href *is* the content.
+      const href =
+        inj.href.kind === 'embed'
+          ? await embedHref(inj)
+          : bust
+            ? cacheBust(withBase(base, inj.href.filename))
+            : withBase(base, inj.href.filename);
       const attrs: Record<string, string> = { rel: inj.rel, type: inj.type, href };
       if (inj.sizes) attrs['sizes'] = inj.sizes;
-      return { tag: inj.tag, attrs, injectTo: 'head' as const };
-    });
+      tags.push({ tag: inj.tag, attrs, injectTo: 'head' as const });
+    }
+    return tags;
   }
 
   /**
@@ -197,6 +227,7 @@ function svgToIco(opts: PluginOptions): Plugin[] {
 if (import.meta.hot) {
   import.meta.hot.on('svg-to-ico:update', (data) => {
     document.querySelectorAll('link[rel*="icon"]').forEach((link) => {
+      if (link.href.startsWith('data:')) return;
       const url = new URL(link.href);
       url.searchParams.set('v', data.cacheId);
       link.href = url.toString();
@@ -205,8 +236,8 @@ if (import.meta.hot) {
 }`;
 
   /** Build the shim script that dynamically manages link tags. */
-  function buildShimScript(): string {
-    const tags = faviconTags();
+  async function buildShimScript(): Promise<string> {
+    const tags = await faviconTags();
     const linksJson = JSON.stringify(tags.map((t) => t.attrs).filter(Boolean));
     const script = `\
 // svg-to-ico shim: dynamically inject favicon links
@@ -225,6 +256,7 @@ ${script}
 if (import.meta.hot) {
   import.meta.hot.on('svg-to-ico:update', (data) => {
     document.querySelectorAll('link[rel*="icon"]').forEach((link) => {
+      if (link.href.startsWith('data:')) return;
       const url = new URL(link.href);
       url.searchParams.set('v', data.cacheId);
       link.href = url.toString();
@@ -402,6 +434,9 @@ if (import.meta.hot) {
 
         resolvedInput = inputIsUrl ? input : resolve(config.root, input);
         resolvedBase = config.base;
+
+        // Surface non-fatal spec issues (e.g. emit:false with no embed).
+        for (const w of resolution.warnings) logger?.warn?.(`[svg-to-ico] ${w}`);
       },
     },
 
@@ -429,7 +464,7 @@ if (import.meta.hot) {
               }
             },
 
-            transformIndexHtml(html: string) {
+            async transformIndexHtml(html: string) {
               let processed = html;
               const tags: HtmlTagDescriptor[] = [];
 
@@ -437,13 +472,13 @@ if (import.meta.hot) {
                 tags.push({
                   tag: 'script',
                   attrs: { type: 'module' },
-                  children: buildShimScript(),
+                  children: await buildShimScript(),
                   injectTo: 'head',
                 });
               } else {
                 if (resolution.hasAnyInjection) {
                   processed = processed.replace(INJECT_ICON_LINK_RE, '');
-                  for (const tag of faviconTags({ applyCacheBust: true })) tags.push(tag);
+                  for (const tag of await faviconTags({ applyCacheBust: true })) tags.push(tag);
                 } else {
                   processed = processed.replace(ICON_LINK_RE, (_match, before, href, after) => {
                     return `${before}${cacheBust(href)}${after}`;
@@ -479,6 +514,7 @@ if (import.meta.hot) {
                       I.start('Regenerate ICO (HMR)');
                       generatedPngs = null;
                       cachedInputBuffer = null;
+                      embedCache.clear();
                       await pngs();
                       I.end('Regenerate ICO (HMR)');
 
@@ -528,14 +564,14 @@ if (import.meta.hot) {
        * configured favicon tag set. Records that the hook fired so
        * {@link closeBundle} can detect frameworks that bypass this pipeline.
        */
-      transformIndexHtml(html) {
+      async transformIndexHtml(html) {
         buildTransformIndexHtmlCalled = true;
         if (!resolution.hasAnyInjection) return;
 
         const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
         return {
           html: cleaned,
-          tags: faviconTags({ base: resolvedBase }),
+          tags: await faviconTags({ base: resolvedBase }),
         };
       },
 

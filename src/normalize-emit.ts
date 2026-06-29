@@ -73,6 +73,7 @@ function fillSpecDefaults(spec: EmitSpec, defaults: Defaults): EmitSpec {
         format: 'ico',
         sizes: spec.sizes ?? defaults.defaultSizes,
         filename: spec.filename ?? defaults.defaultIcoFilename,
+        emit: spec.emit ?? true,
         inject: spec.inject ?? false,
       };
     case 'png':
@@ -80,13 +81,16 @@ function fillSpecDefaults(spec: EmitSpec, defaults: Defaults): EmitSpec {
         format: 'png',
         sizes: spec.sizes,
         filenameTemplate: spec.filenameTemplate ?? 'favicon-{size}x{size}.png',
+        emit: spec.emit ?? true,
         inject: spec.inject ?? false,
       };
     case 'svg':
       return {
         format: 'svg',
         filename: spec.filename ?? defaults.defaultSvgFilename,
+        emit: spec.emit ?? true,
         inject: spec.inject ?? false,
+        encoding: spec.encoding ?? 'base64',
       };
     default:
       // Pass through unknown formats unchanged so configResolved validation
