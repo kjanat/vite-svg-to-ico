@@ -1,8 +1,9 @@
 import { resolve } from 'node:path';
 
 import { INJECT_ICON_LINK_RE } from '#html';
-import type { GenerateOptions, SizedPng } from '#ico';
-import { generateSizedPngs, packIco } from '#ico';
+import { packIco } from '#ico';
+import type { GenerateOptions, SizedPng } from '#raster';
+import { generateSizedPngs } from '#raster';
 import { DEBUG, Instrumentation } from '#instrumentation';
 import { inputExtname, isHttpUrl, loadInputBytes, normalizeInput } from '#loadInput';
 import { normalizeEmit } from '#normalizeEmit';
