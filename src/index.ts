@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 
-import { INJECT_ICON_LINK_RE } from '#html';
+import { INJECT_ICON_LINK_RE } from '#injectHtml';
 import { packIco } from '#ico';
 import type { GenerateOptions, SizedPng } from '#raster';
 import { generateSizedPngs } from '#raster';

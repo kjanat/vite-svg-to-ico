@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { buildFaviconTags, INJECT_ICON_LINK_RE } from '#internals/html.ts';
+import { buildFaviconTags } from '#internals/html.ts';
 import { unwrap } from './_helpers.ts';
 
 describe('buildFaviconTags', () => {
@@ -91,32 +91,5 @@ describe('buildFaviconTags', () => {
     for (const tag of tags) {
       expect(tag.injectTo).toBe('head');
     }
-  });
-});
-
-describe('INJECT_ICON_LINK_RE', () => {
-  it('matches <link rel="icon" ...>', () => {
-    expect('<link rel="icon" href="/favicon.ico">').toMatch(INJECT_ICON_LINK_RE);
-  });
-
-  it('matches <link rel="shortcut icon" ...>', () => {
-    // Reset lastIndex since it's a global regex
-    INJECT_ICON_LINK_RE.lastIndex = 0;
-    expect('<link rel="shortcut icon" href="/favicon.ico">').toMatch(INJECT_ICON_LINK_RE);
-  });
-
-  it('matches with single quotes', () => {
-    INJECT_ICON_LINK_RE.lastIndex = 0;
-    expect("<link rel='icon' href='/favicon.ico'>").toMatch(INJECT_ICON_LINK_RE);
-  });
-
-  it('does NOT match apple-touch-icon', () => {
-    INJECT_ICON_LINK_RE.lastIndex = 0;
-    expect('<link rel="apple-touch-icon" href="/apple.png">').not.toMatch(INJECT_ICON_LINK_RE);
-  });
-
-  it('does NOT match stylesheet', () => {
-    INJECT_ICON_LINK_RE.lastIndex = 0;
-    expect('<link rel="stylesheet" href="/style.css">').not.toMatch(INJECT_ICON_LINK_RE);
   });
 });

@@ -33,6 +33,7 @@
 		"#internals/*": "./src/*",
 		"#types": "./src/types.ts",
 		"#html": "./src/html.ts",
+		"#injectHtml": "./src/inject-html.ts",
 		"#ico": "./src/ico.ts",
 		"#raster": "./src/raster.ts",
 		"#cli/*": "./src/cli/*.ts",
