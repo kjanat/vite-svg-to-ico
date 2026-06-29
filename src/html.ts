@@ -1,27 +1,27 @@
 import type { HtmlTagDescriptor } from 'vite';
 
-import type { InjectMode } from './types.ts';
+import type { InjectMode } from '#types';
 
 /** Metadata for a per-size emitted file. */
 export interface SizedFileInfo {
-	name: string;
-	size: number;
-	/** MIME sub-type, e.g. `'png'` or `'x-icon'`. */
-	format: string;
+  name: string;
+  size: number;
+  /** MIME sub-type, e.g. `'png'` or `'x-icon'`. */
+  format: string;
 }
 
 /** Inputs for building favicon `<link>` tag descriptors. */
 export interface FaviconTagOptions {
-	output: string;
-	sizes: number[];
-	sourceEmitted: boolean;
-	sourceName: string;
-	/** Detected input format: `'svg'`, `'png'`, `'jpg'`, etc. */
-	inputFormat: string;
-	mode: InjectMode;
-	sizedFiles?: SizedFileInfo[];
-	/** Vite resolved `base` path (e.g. `'/'`, `'./'`, `'/repo/'`). Defaults to `'/'`. */
-	base?: string;
+  output: string;
+  sizes: number[];
+  sourceEmitted: boolean;
+  sourceName: string;
+  /** Detected input format: `'svg'`, `'png'`, `'jpg'`, etc. */
+  inputFormat: string;
+  mode: InjectMode;
+  sizedFiles?: SizedFileInfo[];
+  /** Vite resolved `base` path (e.g. `'/'`, `'#'`, `'/repo/'`). Defaults to `'/'`. */
+  base?: string;
 }
 
 /**
@@ -34,54 +34,54 @@ export interface FaviconTagOptions {
  * @returns Array of Vite HTML tag descriptors to inject into `<head>`.
  */
 export function buildFaviconTags(opts: FaviconTagOptions): HtmlTagDescriptor[] {
-	const tags: HtmlTagDescriptor[] = [];
-	const baseRaw = opts.base ?? '/';
-	const base = baseRaw.endsWith('/') ? baseRaw : `${baseRaw}/`;
-	const withBase = (name: string) => `${base}${name.replace(/^\/+/, '')}`;
+  const tags: HtmlTagDescriptor[] = [];
+  const baseRaw = opts.base ?? '/';
+  const base = baseRaw.endsWith('/') ? baseRaw : `${baseRaw}/`;
+  const withBase = (name: string) => `${base}${name.replace(/^\/+/, '')}`;
 
-	// 1. ICO — always
-	tags.push({
-		tag: 'link',
-		attrs: {
-			rel: 'icon',
-			type: 'image/x-icon',
-			href: withBase(opts.output),
-			sizes: opts.sizes.map((s) => `${s}x${s}`).join(' '),
-		},
-		injectTo: 'head',
-	});
+  // 1. ICO — always
+  tags.push({
+    tag: 'link',
+    attrs: {
+      rel: 'icon',
+      type: 'image/x-icon',
+      href: withBase(opts.output),
+      sizes: opts.sizes.map((s) => `${s}x${s}`).join(' '),
+    },
+    injectTo: 'head',
+  });
 
-	// 2. SVG source — only for SVG input with source emitted
-	if (opts.inputFormat === 'svg' && opts.sourceEmitted) {
-		tags.push({
-			tag: 'link',
-			attrs: {
-				rel: 'icon',
-				type: 'image/svg+xml',
-				href: withBase(opts.sourceName),
-				sizes: 'any',
-			},
-			injectTo: 'head',
-		});
-	}
+  // 2. SVG source — only for SVG input with source emitted
+  if (opts.inputFormat === 'svg' && opts.sourceEmitted) {
+    tags.push({
+      tag: 'link',
+      attrs: {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: withBase(opts.sourceName),
+        sizes: 'any',
+      },
+      injectTo: 'head',
+    });
+  }
 
-	// 3. Per-size PNGs — full mode only
-	if (opts.mode === 'full' && opts.sizedFiles) {
-		for (const file of opts.sizedFiles) {
-			tags.push({
-				tag: 'link',
-				attrs: {
-					rel: 'icon',
-					type: `image/${file.format}`,
-					sizes: `${file.size}x${file.size}`,
-					href: withBase(file.name),
-				},
-				injectTo: 'head',
-			});
-		}
-	}
+  // 3. Per-size PNGs — full mode only
+  if (opts.mode === 'full' && opts.sizedFiles) {
+    for (const file of opts.sizedFiles) {
+      tags.push({
+        tag: 'link',
+        attrs: {
+          rel: 'icon',
+          type: `image/${file.format}`,
+          sizes: `${file.size}x${file.size}`,
+          href: withBase(file.name),
+        },
+        injectTo: 'head',
+      });
+    }
+  }
 
-	return tags;
+  return tags;
 }
 
 /**
@@ -93,23 +93,21 @@ export const INJECT_ICON_LINK_RE = /\s*<link\b[^>]*\brel\s*=\s*["'](?:shortcut\s
 
 /** Escape double quotes in an attribute value so it can be safely emitted inside `"..."`. */
 function escapeAttr(v: string): string {
-	return v.replace(/"/g, '&quot;');
+  return v.replace(/"/g, '&quot;');
 }
 
 /** Render a Vite {@link HtmlTagDescriptor} as an HTML string. */
 export function renderTag(tag: HtmlTagDescriptor): string {
-	const attrs = tag.attrs
-		? Object.entries(tag.attrs)
-			.filter(([, v]) => v !== false && v !== undefined && v !== null)
-			.map(([k, v]) => v === true ? k : `${k}="${escapeAttr(String(v))}"`)
-			.join(' ')
-		: '';
-	const open = attrs ? `<${tag.tag} ${attrs}>` : `<${tag.tag}>`;
-	if (tag.children == null) return open;
-	const children = typeof tag.children === 'string'
-		? tag.children
-		: tag.children.map(renderTag).join('');
-	return `${open}${children}</${tag.tag}>`;
+  const attrs = tag.attrs
+    ? Object.entries(tag.attrs)
+        .filter(([, v]) => v !== false && v !== undefined && v !== null)
+        .map(([k, v]) => (v === true ? k : `${k}="${escapeAttr(String(v))}"`))
+        .join(' ')
+    : '';
+  const open = attrs ? `<${tag.tag} ${attrs}>` : `<${tag.tag}>`;
+  if (tag.children == null) return open;
+  const children = typeof tag.children === 'string' ? tag.children : tag.children.map(renderTag).join('');
+  return `${open}${children}</${tag.tag}>`;
 }
 
 /**
@@ -120,12 +118,12 @@ export function renderTag(tag: HtmlTagDescriptor): string {
  * appended at the end of the document.
  */
 export function injectTagsIntoHtml(html: string, tags: HtmlTagDescriptor[]): string {
-	const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
-	const rendered = tags.map(renderTag).join('\n    ');
-	const headCloseRe = /<\/head>/i;
-	const match = cleaned.match(headCloseRe);
-	if (match) {
-		return cleaned.replace(headCloseRe, `    ${rendered}\n  ${match[0]}`);
-	}
-	return `${cleaned}\n${rendered}`;
+  const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
+  const rendered = tags.map(renderTag).join('\n    ');
+  const headCloseRe = /<\/head>/i;
+  const match = cleaned.match(headCloseRe);
+  if (match) {
+    return cleaned.replace(headCloseRe, `    ${rendered}\n  ${match[0]}`);
+  }
+  return `${cleaned}\n${rendered}`;
 }

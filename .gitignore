@@ -160,3 +160,4 @@ dist
 *.tmp.*
 AGENTS.md
 /_*.md
+/.idea/

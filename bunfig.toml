@@ -1,2 +1,2 @@
 [test]
-preload = ["./scripts/smoke-setup.ts"]
+preload = ["./preload.ts"]

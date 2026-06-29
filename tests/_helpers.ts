@@ -11,10 +11,10 @@
  */
 
 export function unwrap<T>(value: T | null | undefined, msg?: string): T {
-	if (value === null || value === undefined) {
-		throw new Error(msg ?? 'unwrap: value is null/undefined');
-	}
-	return value;
+  if (value === null || value === undefined) {
+    throw new Error(msg ?? 'unwrap: value is null/undefined');
+  }
+  return value;
 }
 
 /**
@@ -24,5 +24,5 @@ export function unwrap<T>(value: T | null | undefined, msg?: string): T {
  * to construct.
  */
 export function invalid<T>(value: unknown): T {
-	return value as T;
+  return value as T;
 }

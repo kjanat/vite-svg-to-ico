@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CLI help/deprecation output now renders OSC 8 terminal hyperlinks
+  (clickable CHANGELOG/repo links) via `@kjanat/dreamcli` `^2.5.0`'s
+  `.manifest()`/`.links()`, replacing the static `.version(pkg.version)`
+  wiring. No flags, arguments, or behavior change.
+
+### Build
+
+- Publish dist-only: dropped `src` from `files` and removed the `bun`
+  export condition. Consumers resolve `dist/` everywhere; the published
+  tarball no longer ships TypeScript source.
+- Modularized the CLI: `src/cli.ts` split into `src/cli/` units
+  (`commands/{generate,inject}`, `args/source`, `flags/{sizes,path}`,
+  `colors`); internal relative imports migrated to `#`-prefixed subpath
+  imports declared in `package.json`. No public API change.
+- dprint `^0.54` → `^0.55.1` with the remote config pinned to commit
+  `e5f1f678` (repo-wide reflow); bumped `@typescript/native-preview` and
+  `runner-run`. Moved `scripts/smoke-setup.ts` → `preload.ts`.
+
 ## [3.1.6] - 2026-06-24
 
 ### Changed
@@ -515,4 +535,4 @@ svgToIco({
 [0.2.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kjanat/vite-svg-to-ico/releases/tag/v0.1.0
 
-<!-- markdownlint-disable-file no-duplicate-heading -->
+<!-- markdownlint-disable-file MD013 MD024 MD034 -->

@@ -29,20 +29,20 @@ export type SourceInput = string | URL;
  *   `http:`, or `https:` — the caller picked the wrong abstraction.
  */
 export function normalizeInput(input: SourceInput): string {
-	if (input instanceof URL) {
-		if (input.protocol === 'file:') return fileURLToPath(input);
-		if (input.protocol === 'http:' || input.protocol === 'https:') return input.toString();
-		throw new TypeError(
-			`[svg-to-ico] Unsupported URL protocol: "${input.protocol}" (expected file:, http:, or https:).`,
-		);
-	}
-	if (input.startsWith('file://')) return fileURLToPath(input);
-	return input;
+  if (input instanceof URL) {
+    if (input.protocol === 'file:') return fileURLToPath(input);
+    if (input.protocol === 'http:' || input.protocol === 'https:') return input.toString();
+    throw new TypeError(
+      `[svg-to-ico] Unsupported URL protocol: "${input.protocol}" (expected file:, http:, or https:).`,
+    );
+  }
+  if (input.startsWith('file://')) return fileURLToPath(input);
+  return input;
 }
 
 /** Whether `input` resolves to an `http(s)://` URL (case-insensitive on scheme). */
 export function isHttpUrl(input: SourceInput): boolean {
-	return /^https?:\/\//i.test(normalizeInput(input));
+  return /^https?:\/\//i.test(normalizeInput(input));
 }
 
 /**
@@ -51,19 +51,19 @@ export function isHttpUrl(input: SourceInput): boolean {
  * falling back to `'favicon'` when the URL has no path (e.g. `https://example.com`).
  */
 export function inputBasename(input: SourceInput): string {
-	const s = normalizeInput(input);
-	if (!/^https?:\/\//i.test(s)) return basename(s);
-	try {
-		const name = basename(new URL(s).pathname);
-		return name || 'favicon';
-	} catch {
-		return basename(s);
-	}
+  const s = normalizeInput(input);
+  if (!/^https?:\/\//i.test(s)) return basename(s);
+  try {
+    const name = basename(new URL(s).pathname);
+    return name || 'favicon';
+  } catch {
+    return basename(s);
+  }
 }
 
 /** Lowercased extension (including leading dot) of `input`, URL-aware. */
 export function inputExtname(input: SourceInput): string {
-	return extname(inputBasename(input)).toLowerCase();
+  return extname(inputBasename(input)).toLowerCase();
 }
 
 /**
@@ -74,12 +74,12 @@ export function inputExtname(input: SourceInput): string {
  * the URL and status so failures are diagnosable from CLI/log output.
  */
 export async function loadInputBytes(input: SourceInput): Promise<Buffer> {
-	const s = normalizeInput(input);
-	if (!/^https?:\/\//i.test(s)) return readFile(s);
+  const s = normalizeInput(input);
+  if (!/^https?:\/\//i.test(s)) return readFile(s);
 
-	const res = await fetch(s);
-	if (!res.ok) {
-		throw new Error(`Failed to fetch ${s}: ${res.status} ${res.statusText}`);
-	}
-	return Buffer.from(await res.arrayBuffer());
+  const res = await fetch(s);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ${s}: ${res.status} ${res.statusText}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
 }

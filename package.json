@@ -11,7 +11,8 @@
 		"svg",
 		"ico",
 		"favicon",
-		"converter"
+		"converter",
+		"dreamcli"
 	],
 	"repository": {
 		"type": "git",
@@ -22,7 +23,7 @@
 	"type": "module",
 	"exports": {
 		".": {
-			"bun": "./src/index.ts",
+			"types": "./dist/index.d.mts",
 			"default": "./dist/index.mjs"
 		},
 		"./package.json": "./package.json"
@@ -30,11 +31,19 @@
 	"imports": {
 		"#vite-svg-to-ico": "./src/index.ts",
 		"#internals/*": "./src/*",
+		"#types": "./src/types.ts",
+		"#html": "./src/html.ts",
+		"#ico": "./src/ico.ts",
+		"#cli/*": "./src/cli/*.ts",
+		"#cli": "./src/cli.ts",
+		"#instrumentation": "./src/instrumentation.ts",
+		"#normalizeEmit": "./src/normalize-emit.ts",
+		"#loadInput": "./src/load-input.ts",
+		"#resolveSpecs": "./src/resolve-specs.ts",
 		"#pkg": "./package.json"
 	},
 	"files": [
-		"dist",
-		"src"
+		"dist"
 	],
 	"scripts": {
 		"bd": "tsdown",
@@ -51,17 +60,17 @@
 		"lint": "biome lint"
 	},
 	"dependencies": {
-		"@kjanat/dreamcli": "^2.4",
+		"@kjanat/dreamcli": "^2.5.0",
 		"sharp": "^0.35"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/core": "^0.18",
 		"@biomejs/biome": "^2.5",
 		"@types/bun": "^1.3",
-		"@typescript/native-preview": "^7.0.0-dev",
-		"dprint": "^0.54",
+		"@typescript/native-preview": "^7.0.0-dev.20260629.1",
+		"dprint": "^0.55.1",
 		"publint": "^0.3",
-		"runner-run": "^0.14",
+		"runner-run": "^0.15.0",
 		"tsdown": "^0.22",
 		"typescript": "^6",
 		"unplugin-unused": "^0.5",

@@ -6,14 +6,15 @@ import { join, resolve } from 'node:path';
 import { cwd } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-import { generate, inject } from '#internals/cli.ts';
+import { inject } from '#cli/commands/inject';
+import { generate } from '#internals/cli/commands/generate.ts';
 import { runCommand } from '@kjanat/dreamcli/testkit';
 
 const FIXTURE = resolve(import.meta.dirname, 'fixtures/test.svg');
 const CLI_ENTRY = resolve(import.meta.dirname, '../src/cli.ts');
 
 async function setupTmp(): Promise<string> {
-	return mkdtemp(join(tmpdir(), 'vite-svg-to-ico-cli-'));
+  return mkdtemp(join(tmpdir(), 'vite-svg-to-ico-cli-'));
 }
 
 /**
@@ -21,216 +22,212 @@ async function setupTmp(): Promise<string> {
  * fully satisfy the global `fetch` shape; without it TS rejects assignment.
  */
 function makeFetchStub(
-	impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+  impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
 ): typeof globalThis.fetch {
-	return Object.assign(impl, { preconnect: () => {} });
+  return Object.assign(impl, { preconnect: () => {} });
 }
 
 async function withStubbedFetch<T>(stub: typeof globalThis.fetch, fn: () => Promise<T>): Promise<T> {
-	const original = globalThis.fetch;
-	globalThis.fetch = stub;
-	try {
-		return await fn();
-	} finally {
-		globalThis.fetch = original;
-	}
+  const original = globalThis.fetch;
+  globalThis.fetch = stub;
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = original;
+  }
 }
 
 describe('CLI: generate', () => {
-	it('documents the default out dir as the current directory, not a captured absolute path', async () => {
-		const result = await runCommand(generate, ['--help']);
-		expect(result.exitCode).toBe(0);
+  it('documents the default out dir as the current directory, not a captured absolute path', async () => {
+    const result = await runCommand(generate, ['--help']);
+    expect(result.exitCode).toBe(0);
 
-		const help = result.stdout.join('\n');
-		const flatHelp = help.replace(/\s+/g, ' ');
-		expect(flatHelp).toContain('Defaults to the current working directory. (default: .)');
-		expect(help).toContain('(default: .)');
-		expect(help).not.toContain(cwd());
-	});
+    const help = result.stdout.join('\n');
+    const flatHelp = help.replace(/\s+/g, ' ');
+    expect(flatHelp).toContain('Defaults to the current working directory. (default: .)');
+    expect(help).toContain('(default: .)');
+    expect(help).not.toContain(cwd());
+  });
 
-	it('writes to the invocation cwd by default', async () => {
-		const dir = await setupTmp();
-		const result = await $`bun ${CLI_ENTRY} generate ${FIXTURE} --sizes 16`.cwd(dir).quiet().nothrow();
-		expect(result.exitCode).toBe(0);
+  it('writes to the invocation cwd by default', async () => {
+    const dir = await setupTmp();
+    const result = await $`bun ${CLI_ENTRY} generate ${FIXTURE} --sizes 16`.cwd(dir).quiet().nothrow();
+    expect(result.exitCode).toBe(0);
 
-		const ico = await readFile(join(dir, 'favicon.ico'));
-		expect(ico.byteLength).toBeGreaterThan(0);
-		expect(await Bun.file(join(dir, 'public/favicon.ico')).exists()).toBe(false);
-	});
+    const ico = await readFile(join(dir, 'favicon.ico'));
+    expect(ico.byteLength).toBeGreaterThan(0);
+    expect(await Bun.file(join(dir, 'public/favicon.ico')).exists()).toBe(false);
+  });
 
-	it('writes a multi-size favicon.ico to the out dir', async () => {
-		const dir = await setupTmp();
-		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32']);
-		expect(result.exitCode).toBe(0);
+  it('writes a multi-size favicon.ico to the out dir', async () => {
+    const dir = await setupTmp();
+    const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32']);
+    expect(result.exitCode).toBe(0);
 
-		const stats = await readFile(join(dir, 'favicon.ico'));
-		expect(stats.byteLength).toBeGreaterThan(0);
-		// ICO magic header: reserved (00 00) + type (01 00) + count (02 00 for 2 sizes)
-		expect(stats[0]).toBe(0);
-		expect(stats[2]).toBe(1);
-		expect(stats[4]).toBe(2);
-	});
+    const stats = await readFile(join(dir, 'favicon.ico'));
+    expect(stats.byteLength).toBeGreaterThan(0);
+    // ICO magic header: reserved (00 00) + type (01 00) + count (02 00 for 2 sizes)
+    expect(stats[0]).toBe(0);
+    expect(stats[2]).toBe(1);
+    expect(stats[4]).toBe(2);
+  });
 
-	it('emits source file when --emit-source is set', async () => {
-		const dir = await setupTmp();
-		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--emit-source']);
-		expect(result.exitCode).toBe(0);
+  it('emits source file when --emit-source is set', async () => {
+    const dir = await setupTmp();
+    const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--emit-source']);
+    expect(result.exitCode).toBe(0);
 
-		const source = await readFile(join(dir, 'test.svg'), 'utf8');
-		expect(source).toContain('<svg');
-	});
+    const source = await readFile(join(dir, 'test.svg'), 'utf8');
+    expect(source).toContain('<svg');
+  });
 
-	it('emits per-size PNGs when --emit-sizes png is set', async () => {
-		const dir = await setupTmp();
-		const result = await runCommand(generate, /* dprint-ignore */ [
-			FIXTURE,
-			'--out-dir', dir,
-			'--sizes', '16',
-			'--sizes', '32',
-			'--emit-sizes', 'png',
-		]);
-		expect(result.exitCode).toBe(0);
+  it('emits per-size PNGs when --emit-sizes png is set', async () => {
+    const dir = await setupTmp();
+    const result = await runCommand(
+      generate,
+      /* dprint-ignore */ [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32', '--emit-sizes', 'png'],
+    );
+    expect(result.exitCode).toBe(0);
 
-		const png16 = await readFile(join(dir, 'favicon-16x16.png'));
-		const png32 = await readFile(join(dir, 'favicon-32x32.png'));
-		// PNG magic: 89 50 4E 47
-		expect(png16[0]).toBe(0x89);
-		expect(png16[1]).toBe(0x50);
-		expect(png32[0]).toBe(0x89);
-	});
+    const png16 = await readFile(join(dir, 'favicon-16x16.png'));
+    const png32 = await readFile(join(dir, 'favicon-32x32.png'));
+    // PNG magic: 89 50 4E 47
+    expect(png16[0]).toBe(0x89);
+    expect(png16[1]).toBe(0x50);
+    expect(png32[0]).toBe(0x89);
+  });
 
-	it('rejects invalid sizes', async () => {
-		const dir = await setupTmp();
-		const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '0', '--sizes', '500']);
-		expect(result.exitCode).not.toBe(0);
-		expect(result.stderr.join('')).toContain('Invalid size');
-	});
+  it('rejects invalid sizes', async () => {
+    const dir = await setupTmp();
+    const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '0', '--sizes', '500']);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr.join('')).toContain('Invalid size');
+  });
 
-	it('fetches a URL source and writes ICO + source copy', async () => {
-		const dir = await setupTmp();
-		const svgBytes = await readFile(FIXTURE);
-		const url = 'https://example.test/path/remote.svg?v=1';
-		const seen: string[] = [];
+  it('fetches a URL source and writes ICO + source copy', async () => {
+    const dir = await setupTmp();
+    const svgBytes = await readFile(FIXTURE);
+    const url = 'https://example.test/path/remote.svg?v=1';
+    const seen: string[] = [];
 
-		const stub = makeFetchStub(async (input) => {
-			seen.push(String(input));
-			return new Response(svgBytes, { status: 200, headers: { 'content-type': 'image/svg+xml' } });
-		});
+    const stub = makeFetchStub(async (input) => {
+      seen.push(String(input));
+      return new Response(svgBytes, { status: 200, headers: { 'content-type': 'image/svg+xml' } });
+    });
 
-		const result = await withStubbedFetch(
-			stub,
-			() => runCommand(generate, [url, '--out-dir', dir, '--sizes', '16', '--emit-source']),
-		);
-		expect(result.exitCode).toBe(0);
-		expect(seen).toEqual([url]);
+    const result = await withStubbedFetch(stub, () =>
+      runCommand(generate, [url, '--out-dir', dir, '--sizes', '16', '--emit-source']),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(seen).toEqual([url]);
 
-		const ico = await readFile(join(dir, 'favicon.ico'));
-		expect(ico.byteLength).toBeGreaterThan(0);
+    const ico = await readFile(join(dir, 'favicon.ico'));
+    expect(ico.byteLength).toBeGreaterThan(0);
 
-		// --emit-source should use the URL pathname basename, *not* including the query string.
-		const sourceCopy = await readFile(join(dir, 'remote.svg'), 'utf8');
-		expect(sourceCopy).toContain('<svg');
-	});
+    // --emit-source should use the URL pathname basename, *not* including the query string.
+    const sourceCopy = await readFile(join(dir, 'remote.svg'), 'utf8');
+    expect(sourceCopy).toContain('<svg');
+  });
 
-	it('accepts a file:// URL string as input', async () => {
-		const dir = await setupTmp();
-		const fileUrl = pathToFileURL(FIXTURE).toString();
+  it('accepts a file:// URL string as input', async () => {
+    const dir = await setupTmp();
+    const fileUrl = pathToFileURL(FIXTURE).toString();
 
-		const result = await runCommand(generate, [fileUrl, '--out-dir', dir, '--sizes', '16']);
-		expect(result.exitCode).toBe(0);
+    const result = await runCommand(generate, [fileUrl, '--out-dir', dir, '--sizes', '16']);
+    expect(result.exitCode).toBe(0);
 
-		const ico = await readFile(join(dir, 'favicon.ico'));
-		expect(ico.byteLength).toBeGreaterThan(0);
-	});
+    const ico = await readFile(join(dir, 'favicon.ico'));
+    expect(ico.byteLength).toBeGreaterThan(0);
+  });
 
-	it('reports a clear error when URL fetch fails', async () => {
-		const dir = await setupTmp();
-		const url = 'https://example.test/missing.svg';
+  it('reports a clear error when URL fetch fails', async () => {
+    const dir = await setupTmp();
+    const url = 'https://example.test/missing.svg';
 
-		const stub = makeFetchStub(async () => new Response('not found', { status: 404, statusText: 'Not Found' }));
+    const stub = makeFetchStub(async () => new Response('not found', { status: 404, statusText: 'Not Found' }));
 
-		const result = await withStubbedFetch(stub, () => runCommand(generate, [url, '--out-dir', dir]));
-		expect(result.exitCode).not.toBe(0);
-		expect([...result.stderr, ...result.stdout].join('\n')).toContain('404');
-	});
+    const result = await withStubbedFetch(stub, () => runCommand(generate, [url, '--out-dir', dir]));
+    expect(result.exitCode).not.toBe(0);
+    expect([...result.stderr, ...result.stdout].join('\n')).toContain('404');
+  });
 });
 
 describe('CLI: inject', () => {
-	const HTML = '<html><head><title>x</title><link rel="icon" href="/old.ico"></head><body></body></html>';
+  const HTML = '<html><head><title>x</title><link rel="icon" href="/old.ico"></head><body></body></html>';
 
-	it('rewrites a single HTML file with minimal mode', async () => {
-		const dir = await setupTmp();
-		const file = join(dir, 'index.html');
-		await writeFile(file, HTML);
+  it('rewrites a single HTML file with minimal mode', async () => {
+    const dir = await setupTmp();
+    const file = join(dir, 'index.html');
+    await writeFile(file, HTML);
 
-		const result = await runCommand(inject, [file, '--sizes', '16', '--sizes', '32']);
-		expect(result.exitCode).toBe(0);
+    const result = await runCommand(inject, [file, '--sizes', '16', '--sizes', '32']);
+    expect(result.exitCode).toBe(0);
 
-		const updated = await readFile(file, 'utf8');
-		expect(updated).toContain('rel="icon"');
-		expect(updated).toContain('href="/favicon.ico"');
-		expect(updated).toContain('sizes="16x16 32x32"');
-		expect(updated).not.toContain('/old.ico');
-	});
+    const updated = await readFile(file, 'utf8');
+    expect(updated).toContain('rel="icon"');
+    expect(updated).toContain('href="/favicon.ico"');
+    expect(updated).toContain('sizes="16x16 32x32"');
+    expect(updated).not.toContain('/old.ico');
+  });
 
-	it('preserves apple-touch-icon', async () => {
-		const dir = await setupTmp();
-		const file = join(dir, 'index.html');
-		await writeFile(
-			file,
-			'<html><head><link rel="icon" href="/old.ico"><link rel="apple-touch-icon" href="/apple.png"></head></html>',
-		);
+  it('preserves apple-touch-icon', async () => {
+    const dir = await setupTmp();
+    const file = join(dir, 'index.html');
+    await writeFile(
+      file,
+      '<html><head><link rel="icon" href="/old.ico"><link rel="apple-touch-icon" href="/apple.png"></head></html>',
+    );
 
-		await runCommand(inject, [file]);
-		const updated = await readFile(file, 'utf8');
-		expect(updated).toContain('apple-touch-icon');
-		expect(updated).not.toContain('/old.ico');
-	});
+    await runCommand(inject, [file]);
+    const updated = await readFile(file, 'utf8');
+    expect(updated).toContain('apple-touch-icon');
+    expect(updated).not.toContain('/old.ico');
+  });
 
-	it('handles multiple files via variadic arg', async () => {
-		const dir = await setupTmp();
-		const a = join(dir, 'a.html');
-		const b = join(dir, 'b.html');
-		await writeFile(a, '<head></head>');
-		await writeFile(b, '<head></head>');
+  it('handles multiple files via variadic arg', async () => {
+    const dir = await setupTmp();
+    const a = join(dir, 'a.html');
+    const b = join(dir, 'b.html');
+    await writeFile(a, '<head></head>');
+    await writeFile(b, '<head></head>');
 
-		const result = await runCommand(inject, [a, b]);
-		expect(result.exitCode).toBe(0);
-		expect(await readFile(a, 'utf8')).toContain('/favicon.ico');
-		expect(await readFile(b, 'utf8')).toContain('/favicon.ico');
-	});
+    const result = await runCommand(inject, [a, b]);
+    expect(result.exitCode).toBe(0);
+    expect(await readFile(a, 'utf8')).toContain('/favicon.ico');
+    expect(await readFile(b, 'utf8')).toContain('/favicon.ico');
+  });
 
-	it('honors --base', async () => {
-		const dir = await setupTmp();
-		const file = join(dir, 'index.html');
-		await writeFile(file, '<head></head>');
+  it('honors --base', async () => {
+    const dir = await setupTmp();
+    const file = join(dir, 'index.html');
+    await writeFile(file, '<head></head>');
 
-		await runCommand(inject, [file, '--base', '/app/']);
-		const updated = await readFile(file, 'utf8');
-		expect(updated).toContain('href="/app/favicon.ico"');
-	});
+    await runCommand(inject, [file, '--base', '/app/']);
+    const updated = await readFile(file, 'utf8');
+    expect(updated).toContain('href="/app/favicon.ico"');
+  });
 
-	it('emits SVG link when --source is provided', async () => {
-		const dir = await setupTmp();
-		const file = join(dir, 'index.html');
-		await writeFile(file, '<head></head>');
+  it('emits SVG link when --source is provided', async () => {
+    const dir = await setupTmp();
+    const file = join(dir, 'index.html');
+    await writeFile(file, '<head></head>');
 
-		await runCommand(inject, [file, '--source', 'favicon.svg']);
-		const updated = await readFile(file, 'utf8');
-		expect(updated).toContain('type="image/svg+xml"');
-		expect(updated).toContain('href="/favicon.svg"');
-	});
+    await runCommand(inject, [file, '--source', 'favicon.svg']);
+    const updated = await readFile(file, 'utf8');
+    expect(updated).toContain('type="image/svg+xml"');
+    expect(updated).toContain('href="/favicon.svg"');
+  });
 
-	it('reports missing files but does not fail the run', async () => {
-		const dir = await setupTmp();
-		const present = join(dir, 'present.html');
-		await writeFile(present, '<head></head>');
+  it('reports missing files but does not fail the run', async () => {
+    const dir = await setupTmp();
+    const present = join(dir, 'present.html');
+    await writeFile(present, '<head></head>');
 
-		const result = await runCommand(inject, [present, join(dir, 'nope.html')]);
-		expect(result.exitCode).toBe(0);
-		const all = [...result.stdout, ...result.stderr].join('\n');
-		expect(all).toContain('file not found');
-		// the present one still got rewritten
-		expect(await readFile(present, 'utf8')).toContain('/favicon.ico');
-	});
+    const result = await runCommand(inject, [present, join(dir, 'nope.html')]);
+    expect(result.exitCode).toBe(0);
+    const all = [...result.stdout, ...result.stderr].join('\n');
+    expect(all).toContain('file not found');
+    // the present one still got rewritten
+    expect(await readFile(present, 'utf8')).toContain('/favicon.ico');
+  });
 });
