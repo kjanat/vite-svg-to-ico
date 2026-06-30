@@ -18,7 +18,8 @@
  * and `transformIndexHtml`.
  */
 
-import type { DataUriEncoding, EmitSpec, IconSize } from '#types';
+import { type IconSize, parseSize } from '#size';
+import type { DataUriEncoding, EmitSpec } from '#types';
 
 /** One file the plugin will produce on disk (build) or serve at a URL (dev). */
 export interface ResolvedFile {
@@ -111,7 +112,7 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
   for (const [i, spec] of specs.entries()) {
     switch (spec.format) {
       case 'ico': {
-        const sizes = spec.sizes ?? [];
+        const sizes = (spec.sizes ?? []).map((s) => parseSize(s, 256));
         const filename = spec.filename ?? 'favicon.ico';
         for (const s of sizes) sizeSet.add(s);
         const [only] = sizes;
@@ -137,8 +138,9 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
       case 'png': {
         const tmpl = spec.filenameTemplate ?? 'favicon-{size}x{size}.png';
         const inj = spec.inject;
-        // Resolve which sizes get a tag, and whether those tags inline the bytes.
-        let injectSizes: Set<IconSize> | null;
+        // Which sizes get a tag (membership only — kept as raw numbers), and
+        // whether those tags inline the bytes.
+        let injectSizes: Set<number> | null;
         let embed = false;
         if (inj === true) {
           injectSizes = new Set(spec.sizes);
@@ -152,7 +154,8 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
           injectSizes = null;
         }
         const willEmit = spec.emit ?? true;
-        for (const size of spec.sizes) {
+        for (const rawSize of spec.sizes) {
+          const size = parseSize(rawSize, 4096);
           sizeSet.add(size);
           const filename = tmpl.replace(/\{size\}/g, String(size));
           const source: ResolvedFileSource = { kind: 'png', size };

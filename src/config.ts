@@ -13,7 +13,7 @@ import { inspect } from 'node:util';
 
 import { inputBasename, inputExtname, isHttpUrl, normalizeInput } from '#loadInput';
 import type { GenerateOptions } from '#raster';
-import type { DevOptions, EmitSpec, IconSize, PluginOptions } from '#types';
+import type { DevOptions, EmitSpec, PluginOptions } from '#types';
 import { DEV_INJECTIONS, EMIT_FORMATS, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from '#types';
 
 /** Normalize extensions to correct MIME subtypes. */
@@ -29,7 +29,7 @@ export interface ResolvedConfig {
   /** Full MIME type for the source format, e.g. `'image/svg+xml'`. */
   sourceMimeType: string;
   /** Validated top-level sizes (fallback for specs omitting `sizes`). */
-  sizes: IconSize[];
+  sizes: number[];
   optimize: boolean;
   resize?: GenerateOptions['resize'];
   png?: GenerateOptions['png'];
@@ -50,7 +50,7 @@ function assertSizeRange(sizes: readonly number[], max: number, label: string): 
 }
 
 interface Defaults {
-  sizes: IconSize[];
+  sizes: number[];
   icoFilename: string;
   svgFilename: string;
 }
@@ -135,7 +135,7 @@ export function parseConfig(opts: PluginOptions): ResolvedConfig {
   const sourceMimeType = inputFormat === 'svg' ? 'image/svg+xml' : `image/${mimeFormat}`;
 
   const rawSizes = opts.sizes ?? [16, 32, 48];
-  const sizes = (Array.isArray(rawSizes) ? rawSizes : [rawSizes]) as IconSize[];
+  const sizes = Array.isArray(rawSizes) ? rawSizes : [rawSizes];
   if (sizes.length === 0) fail('`sizes` must contain at least one value');
   assertSizeRange(sizes, 256, 'Invalid sizes:');
 

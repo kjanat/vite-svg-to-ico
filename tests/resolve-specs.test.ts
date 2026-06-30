@@ -33,7 +33,12 @@ describe('resolveSpecs — embed hrefs', () => {
   it('ico inject:embed → base64 embed href carrying the ico source', () => {
     const { injections } = one({ format: 'ico', sizes: [16, 32], inject: 'embed' });
     const href = unwrap(injections[0]).href;
-    expect(href).toEqual({ kind: 'embed', source: { kind: 'combined-ico', sizes: [16, 32] }, encoding: 'base64' });
+    expect(href.kind).toBe('embed');
+    if (href.kind !== 'embed') throw new Error('expected embed href');
+    expect(href.encoding).toBe('base64');
+    expect(href.source.kind).toBe('combined-ico');
+    if (href.source.kind !== 'combined-ico') throw new Error('expected combined-ico');
+    expect(href.source.sizes.map(Number)).toEqual([16, 32]);
   });
 
   it('ico inject:true → file href (unchanged behavior)', () => {

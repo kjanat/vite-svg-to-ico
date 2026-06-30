@@ -36,6 +36,7 @@
 		"#injectHtml": "./src/inject-html.ts",
 		"#ico": "./src/ico.ts",
 		"#raster": "./src/raster.ts",
+		"#size": "./src/size.ts",
 		"#cli/*": "./src/cli/*.ts",
 		"#cli": "./src/cli.ts",
 		"#assets": "./src/assets.ts",

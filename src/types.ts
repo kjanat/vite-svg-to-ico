@@ -64,7 +64,7 @@ export type EmitFormat = (typeof EMIT_FORMATS)[number];
 export interface IcoSpec {
   format: 'ico';
   /** Sizes to pack into this ICO (1–256). Falls back to {@link PluginOptions.sizes} when omitted. */
-  sizes?: IconSize[];
+  sizes?: number[];
   /** Output filename for this ICO. Falls back to {@link PluginOptions.output} or `'favicon.ico'`. */
   filename?: string;
   /** Write the ICO file to disk (or serve it in dev).
@@ -93,7 +93,7 @@ export interface PngSpec {
    * Standalone PNGs aren't bound by ICO's 8-bit width/height field — sizes
    * like `192` (Android), `512` (PWA manifest), `1024` (retina) are all valid.
    */
-  sizes: IconSize[];
+  sizes: number[];
   /** Filename template using `{size}` as a placeholder. @default `'favicon-{size}x{size}.png'` */
   filenameTemplate?: string;
   /** Write the PNG files to disk (or serve them in dev).
@@ -112,7 +112,7 @@ export interface PngSpec {
    * - `{ sizes }` — tags only for the listed sizes (must be a subset of
    *   {@link sizes}). Omit `sizes` to target every size.
    * - `{ sizes, embed: true }` — as above, but inlined as `data:` URIs. */
-  inject?: boolean | 'embed' | { sizes?: IconSize[]; embed?: boolean };
+  inject?: boolean | 'embed' | { sizes?: number[]; embed?: boolean };
 }
 
 /** Emit a copy of the source image (only meaningful when input is an SVG). */
@@ -172,8 +172,7 @@ export interface SharpOptions {
   png?: Omit<PngOptions, 'force'>;
 }
 
-/** Common ICO pixel dimensions with IDE autocompletion; any integer 1–256 is accepted. */
-export type IconSize = 16 | 24 | 32 | 48 | 64 | 128 | 256 | (number & {});
+export type { IconSize } from '#size';
 
 /** Valid string values for {@link PluginOptions.dev} injection mode. */
 export const DEV_INJECTIONS = ['transform', 'shim'] as const;
