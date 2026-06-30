@@ -1,15 +1,13 @@
 import { resolve } from 'node:path';
 
+import { AssetProducer } from '#assets';
 import { parseConfig } from '#config';
-import { toDataUri } from '#dataUri';
 import { buildFaviconTags, cacheBust } from '#faviconTags';
+import { buildShimScript, hmrClientCode } from '#devClient';
 import { INJECT_ICON_LINK_RE } from '#injectHtml';
-import { packIco } from '#ico';
 import { DEBUG, Instrumentation } from '#instrumentation';
-import { loadInputBytes } from '#loadInput';
-import type { GenerateOptions, SizedPng } from '#raster';
-import { generateSizedPngs } from '#raster';
-import { type ResolvedFile, type ResolvedInjection, resolveSpecs } from '#resolveSpecs';
+import type { GenerateOptions } from '#raster';
+import { resolveSpecs } from '#resolveSpecs';
 import type {
   DevInjection,
   DevOptions,
@@ -93,15 +91,12 @@ export type {
 function svgToIco(opts: PluginOptions): Plugin[] {
   // The single parse boundary — validates eagerly and throws on bad config.
   const cfg = parseConfig(opts);
-  const { input, inputIsUrl, inputFormat, sourceMimeType, optimize } = cfg;
-  const resizeOpts = cfg.resize;
-  const pngOpts = cfg.png;
+  const { input, inputIsUrl, inputFormat } = cfg;
   const devOpts = cfg.dev;
 
   const resolution = resolveSpecs(cfg.specs, { inputFormat });
+  const producer = new AssetProducer(cfg, resolution.requiredSizes);
 
-  let generatedPngs: SizedPng[] | null = null;
-  let cachedInputBuffer: Buffer | null = null;
   let logger: import('vite').Logger | null = null;
   let buildTransformIndexHtmlCalled = false;
 
@@ -112,141 +107,16 @@ function svgToIco(opts: PluginOptions): Plugin[] {
   /** Cache-bust key appended to icon hrefs; updated on each HMR cycle. */
   let cacheId = Date.now().toString(36);
 
-  /** Generation options shared with sharp; sizes vary per call. */
-  const genOptsFor = (s: IconSize[]): GenerateOptions => ({
-    sizes: s,
-    optimize,
-    resize: resizeOpts,
-    png: pngOpts,
-  });
-
   /** Matches `<link>` tags whose `rel` contains `icon` (covers `icon`, `shortcut icon`, `apple-touch-icon`). */
   const ICON_LINK_RE = /(<link\b[^>]*\brel\s*=\s*["'][^"']*icon[^"']*["'][^>]*\bhref\s*=\s*["'])([^"']+)(["'][^>]*>)/gi;
-
-  /** Cache of resolved `data:` URIs, keyed by the embed injection that owns them. Cleared on HMR. */
-  const embedCache = new Map<ResolvedInjection, string>();
-
-  /** Produce (and memoize) the `data:` URI for an embed injection from the same bytes the emitter uses. */
-  async function embedHref(inj: ResolvedInjection): Promise<string> {
-    const cached = embedCache.get(inj);
-    if (cached !== undefined) return cached;
-    if (inj.href.kind !== 'embed') throw new Error('[svg-to-ico] internal: embedHref called on a non-embed injection');
-    const bytes = await produce({ filename: '', mime: '', source: inj.href.source });
-    const uri = toDataUri(bytes, inj.type, inj.href.encoding);
-    embedCache.set(inj, uri);
-    return uri;
-  }
 
   /** Build favicon `<link>` descriptors via the shared builder; embed-kind injections produce their bytes. */
   function faviconTags(options?: { base?: string; applyCacheBust?: boolean }): Promise<HtmlTagDescriptor[]> {
     return buildFaviconTags(resolution.injections, {
       base: options?.base,
       cacheId: options?.applyCacheBust ? cacheId : undefined,
-      embed: (inj) => (inj.href.kind === 'embed' ? embedHref(inj) : undefined),
+      embed: (inj) => (inj.href.kind === 'embed' ? producer.embedUri(inj) : undefined),
     });
-  }
-
-  /**
-   * Small client-side HMR snippet injected during dev.
-   *
-   * Listens for the `svg-to-ico:update` custom event and swaps every
-   * `<link rel="…icon…">` href with a fresh cache-bust param so the
-   * browser re-fetches the favicon without a full page reload.
-   */
-  const hmrClientCode = `\
-if (import.meta.hot) {
-  import.meta.hot.on('svg-to-ico:update', (data) => {
-    document.querySelectorAll('link[rel*="icon"]').forEach((link) => {
-      if (link.href.startsWith('data:')) return;
-      const url = new URL(link.href);
-      url.searchParams.set('v', data.cacheId);
-      link.href = url.toString();
-    });
-  });
-}`;
-
-  /** Build the shim script that dynamically manages link tags. */
-  async function buildShimScript(): Promise<string> {
-    const tags = await faviconTags();
-    const linksJson = JSON.stringify(tags.map((t) => t.attrs).filter(Boolean));
-    const script = `\
-// svg-to-ico shim: dynamically inject favicon links
-const links = ${linksJson};
-document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(l => l.remove());
-links.forEach(attrs => {
-  const link = document.createElement("link");
-  Object.entries(attrs).forEach(([k, v]) => link.setAttribute(k, v));
-  document.head.appendChild(link);
-});`;
-
-    if (!devOpts.hmr) return script;
-
-    return `\
-${script}
-if (import.meta.hot) {
-  import.meta.hot.on('svg-to-ico:update', (data) => {
-    document.querySelectorAll('link[rel*="icon"]').forEach((link) => {
-      if (link.href.startsWith('data:')) return;
-      const url = new URL(link.href);
-      url.searchParams.set('v', data.cacheId);
-      link.href = url.toString();
-    });
-  });
-}`;
-  }
-
-  /** Read + cache the source input buffer (filesystem or http(s) URL). */
-  async function inputBytes(): Promise<Buffer> {
-    if (!cachedInputBuffer) cachedInputBuffer = await loadInputBytes(resolvedInput);
-    return cachedInputBuffer;
-  }
-
-  /** Ensure required PNGs are generated, return them. */
-  async function pngs(): Promise<SizedPng[]> {
-    if (!generatedPngs) {
-      // URLs are fetched once and cached; sharp accepts the Buffer directly.
-      // Filesystem paths can be passed through so sharp opens the file itself.
-      const src = inputIsUrl ? await inputBytes() : resolvedInput;
-      generatedPngs = await generateSizedPngs(src, genOptsFor(resolution.requiredSizes));
-    }
-    return generatedPngs;
-  }
-
-  /** Produce bytes for a resolved file. */
-  async function produce(file: ResolvedFile): Promise<Buffer> {
-    switch (file.source.kind) {
-      case 'source-copy':
-        return inputBytes();
-      case 'png': {
-        const all = await pngs();
-        const png = all.find((p) => p.size === (file.source as { size: IconSize }).size);
-        if (!png) {
-          throw new Error(`[svg-to-ico] internal: missing PNG size ${(file.source as { size: IconSize }).size}`);
-        }
-        return png.buffer;
-      }
-      case 'single-ico': {
-        const all = await pngs();
-        const png = all.find((p) => p.size === (file.source as { size: IconSize }).size);
-        if (!png) {
-          throw new Error(`[svg-to-ico] internal: missing PNG size ${(file.source as { size: IconSize }).size}`);
-        }
-        return packIco([png]);
-      }
-      case 'combined-ico': {
-        const all = await pngs();
-        const wantSizes = (file.source as { sizes: IconSize[] }).sizes;
-        const subset = wantSizes
-          .map((s) => all.find((p) => p.size === s))
-          .filter((p): p is SizedPng => p !== undefined);
-        return packIco(subset);
-      }
-    }
-  }
-
-  /** Content-Type header for a file based on its mime subtype. */
-  function contentType(mime: string): string {
-    return mime === 'svg+xml' ? sourceMimeType : `image/${mime}`;
   }
 
   return [
@@ -260,6 +130,7 @@ if (import.meta.hot) {
         // hook only applies Vite's resolved `root`/`base` and surfaces warnings.
         resolvedInput = inputIsUrl ? input : resolve(config.root, input);
         resolvedBase = config.base;
+        producer.setResolvedInput(resolvedInput);
 
         // Surface non-fatal spec issues (e.g. emit:false with no embed).
         for (const w of resolution.warnings) logger?.warn?.(`[svg-to-ico] ${w}`);
@@ -278,8 +149,8 @@ if (import.meta.hot) {
               for (const file of resolution.files) {
                 const handler: Connect.NextHandleFunction = async (_req, res, next) => {
                   try {
-                    const bytes = await produce(file);
-                    res.setHeader('Content-Type', contentType(file.mime));
+                    const bytes = await producer.produce(file);
+                    res.setHeader('Content-Type', producer.contentType(file.mime));
                     res.setHeader('Cache-Control', 'no-cache');
                     res.end(bytes);
                   } catch (e) {
@@ -298,7 +169,7 @@ if (import.meta.hot) {
                 tags.push({
                   tag: 'script',
                   attrs: { type: 'module' },
-                  children: await buildShimScript(),
+                  children: buildShimScript(await faviconTags(), devOpts.hmr),
                   injectTo: 'head',
                 });
               } else {
@@ -328,7 +199,7 @@ if (import.meta.hot) {
               const I = new Instrumentation();
               I.start('Generate ICO (serve)');
               // Pre-warm PNGs so the first request is fast.
-              await pngs();
+              await producer.pngs();
               I.end('Generate ICO (serve)');
             },
 
@@ -338,10 +209,8 @@ if (import.meta.hot) {
                     if (file === resolvedInput) {
                       const I = new Instrumentation();
                       I.start('Regenerate ICO (HMR)');
-                      generatedPngs = null;
-                      cachedInputBuffer = null;
-                      embedCache.clear();
-                      await pngs();
+                      producer.reset();
+                      await producer.pngs();
                       I.end('Regenerate ICO (HMR)');
 
                       cacheId = Date.now().toString(36);
@@ -370,7 +239,7 @@ if (import.meta.hot) {
 
         try {
           for (const file of resolution.files) {
-            const bytes = await produce(file);
+            const bytes = await producer.produce(file);
             this.emitFile({ type: 'asset', fileName: file.filename, source: bytes });
           }
 
