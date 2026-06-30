@@ -133,13 +133,12 @@ svg-to-ico generate https://example.com/icon.svg --out-dir build
 npx -y --package=vite-svg-to-ico svg-to-ico generate https://example.com/icon.svg --out-dir build
 ```
 
-### Legacy v2 `emit` shape
+### Migrating from the v2 `emit` shape
 
-The `{ source, sizes, inject }` object shape from v2 still works
-via a compatibility shim and logs a one-time deprecation warning.
-It will be **removed in v4**. Migrate examples:
+The `{ source, sizes, inject }` object shape was **removed in v4** — `emit`
+now accepts only an `EmitSpec[]` array. Convert as follows:
 
-| v2                                          | v3                                                                                              |
+| v2 (removed)                                | v3/v4                                                                                           |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `emit: { source: true }`                    | `emit: [{ format: 'ico' }, { format: 'svg' }]`                                                  |
 | `emit: { sizes: 'png' }`                    | `emit: [{ format: 'ico' }, { format: 'png', sizes: [16, 32, 48] }]`                             |
@@ -219,14 +218,14 @@ svgToIco({ input: 'src/icon.svg', dev: { hmr: false } });
 
 ## Options
 
-| Option   | Type                              | Default               | Description                                                                       |
-| -------- | --------------------------------- | --------------------- | --------------------------------------------------------------------------------- |
-| `input`  | `string \| URL`                   | **(required)**        | Source image: path, `URL` instance, or `file://` / `http(s)://` URL string.       |
-| `sizes`  | `number \| number[]`              | `[16, 32, 48]`        | Default sizes used when an `IcoSpec` omits its own `sizes`.                       |
-| `emit`   | `EmitSpec[] \| LegacyEmitOptions` | `[{ format: 'ico' }]` | What to emit and inject. Array of specs (v3) or legacy object shape (deprecated). |
-| `output` | `string`                          | `'favicon.ico'`       | _Deprecated_. Fallback ICO filename when an `IcoSpec` omits `filename`.           |
-| `sharp`  | `SharpOptions`                    | `{}`                  | Sharp image processing options.                                                   |
-| `dev`    | `boolean \| DevOptions`           | `true`                | Control dev-server behavior.                                                      |
+| Option   | Type                    | Default               | Description                                                                 |
+| -------- | ----------------------- | --------------------- | --------------------------------------------------------------------------- |
+| `input`  | `string \| URL`         | **(required)**        | Source image: path, `URL` instance, or `file://` / `http(s)://` URL string. |
+| `sizes`  | `number \| number[]`    | `[16, 32, 48]`        | Default sizes used when an `IcoSpec` omits its own `sizes`.                 |
+| `emit`   | `EmitSpec[]`            | `[{ format: 'ico' }]` | What to emit and inject — an array of per-format specs.                     |
+| `output` | `string`                | `'favicon.ico'`       | Fallback ICO filename when an `IcoSpec` omits `filename`.                   |
+| `sharp`  | `SharpOptions`          | `{}`                  | Sharp image processing options.                                             |
+| `dev`    | `boolean \| DevOptions` | `true`                | Control dev-server behavior.                                                |
 
 ### `emit` (v3 — recommended)
 

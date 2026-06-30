@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-06-30
+
+### Removed (BREAKING)
+
+- Dropped the v2 `emit: { source, sizes, inject }` object shape — `emit` now
+  accepts only an `EmitSpec[]` array. Removed the exported types
+  `LegacyEmitOptions`, `EmitOptions`, `isLegacyEmit`, `NormalizedEmit`,
+  `IncludeSourceOptions`, `EmitSizesFormat`, and `EMIT_SIZES_FORMATS`.
+  Migration:
+
+  | v2 (removed)                                | v3/v4                                                                      |
+  | ------------------------------------------- | -------------------------------------------------------------------------- |
+  | `emit: { source: true }`                    | `emit: [{ format: 'ico' }, { format: 'svg' }]`                             |
+  | `emit: { sizes: 'png' }`                    | `emit: [{ format: 'ico' }, { format: 'png', sizes: [16, 32, 48] }]`        |
+  | `emit: { sizes: 'ico' }`                    | `emit: [{ format: 'ico' }, { format: 'ico', sizes: [n], filename: … }, …]` |
+  | `emit: { source: true, inject: 'minimal' }` | `emit: [{ format: 'ico', inject: true }, { format: 'svg', inject: true }]` |
+  | `emit: { inject: 'full', sizes: 'png' }`    | add `{ format: 'png', sizes: […], inject: true }` to the array             |
+
+### Internal
+
+- Restructured the library internals (`src/*.ts`) by pipeline stage: a single
+  `parseConfig` boundary (`config.ts`) replaces three scattered parse/validate
+  sites; one shared favicon-tag builder (`favicon-tags.ts`) serves both the
+  plugin and the CLI (removing the duplicated `withBase`/`<link>` logic); byte
+  production moves into a testable `AssetProducer` (`assets.ts`); `index.ts`
+  shrinks from ~600 to ~300 lines. `ico.ts` split into `raster.ts` (sharp) +
+  `ico.ts` (packing); `html.ts` split into `favicon-tags.ts` + `inject-html.ts`.
+  `IconSize` is now a branded type produced by `parseSize` at the boundary
+  (public option fields remain plain `number`). No runtime behavior change
+  beyond the v2 removal above.
+
 ### Added
 
 - Embed favicons inline as `data:` URIs instead of (or alongside) emitting
