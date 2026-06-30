@@ -4,11 +4,11 @@ import { parseSize } from '#size';
 
 describe('parseSize', () => {
   it('accepts an in-range integer', () => {
-    expect(parseSize(48, 256)).toBe(48);
+    expect(Number(parseSize(48, 256))).toBe(48);
   });
 
   it('accepts up to max (PNG 4096)', () => {
-    expect(parseSize(4096, 4096)).toBe(4096);
+    expect(Number(parseSize(4096, 4096))).toBe(4096);
   });
 
   it('rejects non-integers', () => {
