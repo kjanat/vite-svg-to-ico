@@ -14,7 +14,7 @@ import { inspect } from 'node:util';
 import { inputBasename, inputExtname, isHttpUrl, normalizeInput } from '#loadInput';
 import type { GenerateOptions } from '#raster';
 import type { DevOptions, EmitSpec, PluginOptions } from '#types';
-import { DEV_INJECTIONS, EMIT_FORMATS, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from '#types';
+import { DATA_URI_ENCODINGS, DEV_INJECTIONS, EMIT_FORMATS, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from '#types';
 
 /** Normalize extensions to correct MIME subtypes. */
 const MIME_OVERRIDES: Record<string, string> = { jpg: 'jpeg', tif: 'tiff' };
@@ -47,6 +47,18 @@ function fail(message: string): never {
 function assertSizeRange(sizes: readonly number[], max: number, label: string): void {
   const bad = sizes.filter((s) => !Number.isInteger(s) || s < 1 || s > max);
   if (bad.length > 0) fail(`${label} invalid: ${bad.join(', ')}. Must be integers 1–${max}.`);
+}
+
+/** Require a value to be a boolean (JS consumers can pass anything). Params typed `unknown` to dodge no-overlap narrowing. */
+function assertBoolean(value: unknown, label: string): void {
+  if (typeof value !== 'boolean') fail(`${label} must be a boolean.`);
+}
+
+/** Require an `inject` value to be `false`, `true`, or `'embed'` (the shape ICO/SVG specs accept). */
+function assertSimpleInject(value: unknown, i: number): void {
+  if (value !== false && value !== true && value !== 'embed') {
+    fail(`emit[${i}].inject must be false, true, or 'embed'.`);
+  }
 }
 
 interface Defaults {
@@ -87,14 +99,16 @@ function fillSpecDefaults(spec: EmitSpec, d: Defaults): EmitSpec {
   }
 }
 
-/** Validate one defaulted spec. */
+/** Validate one defaulted spec. Rejects bogus JS shapes so downstream layers only ever see normalized, valid values. */
 function validateSpec(spec: EmitSpec, i: number): void {
   if (!(EMIT_FORMATS as readonly string[]).includes(spec.format)) {
     fail(
       `emit[${i}].format invalid: "${spec.format}". Must be one of ${EMIT_FORMATS.map((f) => `'${f}'`).join(', ')}.`,
     );
   }
+  assertBoolean(spec.emit, `emit[${i}].emit`);
   if (spec.format === 'ico') {
+    assertSimpleInject(spec.inject, i);
     if (!spec.sizes || spec.sizes.length === 0) fail(`emit[${i}] (ico) requires \`sizes\` with at least one value.`);
     else assertSizeRange(spec.sizes, 256, `emit[${i}].sizes`);
   }
@@ -103,16 +117,39 @@ function validateSpec(spec: EmitSpec, i: number): void {
     // PNG specs are standalone files — they don't share ICO's 8-bit width/height
     // field, so the 256 cap doesn't apply. Cap at 4096 to catch obvious typos.
     assertSizeRange(spec.sizes, 4096, `emit[${i}].sizes`);
-    const inj = spec.inject;
-    if (inj && typeof inj === 'object' && inj.sizes) {
-      const allowed = new Set(spec.sizes);
-      const bad = inj.sizes.filter((s) => !allowed.has(s));
-      if (bad.length > 0) {
-        fail(
-          `emit[${i}].inject.sizes contains values not in spec.sizes: ${bad.join(', ')}. ` +
-            `Must be a subset of [${spec.sizes.join(', ')}].`,
-        );
+    const inj: unknown = spec.inject;
+    const isPlainObject = typeof inj === 'object' && inj !== null && !Array.isArray(inj);
+    if (inj !== false && inj !== true && inj !== 'embed' && !isPlainObject) {
+      fail(`emit[${i}].inject must be false, true, 'embed', or a { sizes?, embed? } object.`);
+    }
+    if (isPlainObject) {
+      const obj = inj as { sizes?: unknown; embed?: unknown };
+      if (obj.embed !== undefined) assertBoolean(obj.embed, `emit[${i}].inject.embed`);
+      if (obj.sizes !== undefined) {
+        // An empty subset injects nothing yet reports as "configured", masking a
+        // spec that silently produces no output — reject it at the boundary.
+        if (!Array.isArray(obj.sizes) || obj.sizes.length === 0) {
+          fail(`emit[${i}].inject.sizes must be a non-empty subset of spec.sizes.`);
+        }
+        const allowed = new Set(spec.sizes);
+        const bad = obj.sizes.filter((s) => !allowed.has(s));
+        if (bad.length > 0) {
+          fail(
+            `emit[${i}].inject.sizes contains values not in spec.sizes: ${bad.join(', ')}. ` +
+              `Must be a subset of [${spec.sizes.join(', ')}].`,
+          );
+        }
       }
+    }
+  }
+  if (spec.format === 'svg') {
+    assertSimpleInject(spec.inject, i);
+    if (!(DATA_URI_ENCODINGS as readonly unknown[]).includes(spec.encoding)) {
+      fail(
+        `emit[${i}].encoding invalid: "${String(spec.encoding)}". Must be ${DATA_URI_ENCODINGS.map(
+          (e) => `'${e}'`,
+        ).join(', ')}.`,
+      );
     }
   }
 }
@@ -143,6 +180,15 @@ export function parseConfig(opts: PluginOptions): ResolvedConfig {
 
   const devDefaults: Required<DevOptions> = { enabled: true, injection: 'transform', hmr: true };
   const rawDev = opts.dev ?? true;
+  // JS consumers can pass anything. Reject non-boolean/non-object `dev`, and any
+  // non-boolean `enabled`/`hmr`, before they get spread in as the wrong type.
+  if (typeof rawDev !== 'boolean' && (rawDev === null || typeof rawDev !== 'object' || Array.isArray(rawDev))) {
+    fail('`dev` must be a boolean or an object.');
+  }
+  if (typeof rawDev === 'object') {
+    if (rawDev.enabled !== undefined) assertBoolean(rawDev.enabled, '`dev.enabled`');
+    if (rawDev.hmr !== undefined) assertBoolean(rawDev.hmr, '`dev.hmr`');
+  }
   const dev: Required<DevOptions> =
     typeof rawDev === 'boolean' ? { ...devDefaults, enabled: rawDev } : { ...devDefaults, ...rawDev };
   if (

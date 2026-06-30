@@ -51,4 +51,9 @@ describe('generateIco', () => {
     expect(ico.readUInt16LE(2)).toBe(1);
     expect(ico.readUInt16LE(4)).toBe(2);
   });
+
+  it('rejects sizes above 256 (ICO directory caps width/height at 256)', () => {
+    // Reject before rasterizing — an entry above 256 cannot be represented honestly.
+    expect(generateIco(FIXTURE, { sizes: [512], optimize: false })).rejects.toThrow(/256px/);
+  });
 });

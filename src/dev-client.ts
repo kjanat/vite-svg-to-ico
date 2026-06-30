@@ -13,7 +13,11 @@ import type { HtmlTagDescriptor } from 'vite';
 export const hmrClientCode = `\
 if (import.meta.hot) {
   import.meta.hot.on('svg-to-ico:update', (data) => {
-    document.querySelectorAll('link[rel*="icon"]').forEach((link) => {
+    document.querySelectorAll('link[rel]').forEach((link) => {
+      // Match only the rels the inject/remove path manages; leave
+      // apple-touch-icon and friends alone (mirrors INJECT_ICON_LINK_RE).
+      const rel = link.getAttribute('rel')?.trim().toLowerCase();
+      if (rel !== 'icon' && rel !== 'shortcut icon') return;
       if (link.href.startsWith('data:')) return;
       const url = new URL(link.href);
       url.searchParams.set('v', data.cacheId);

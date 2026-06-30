@@ -180,7 +180,7 @@ describe('integration: build', () => {
       expect(html).toContain('image/x-icon');
     } finally {
       // Restore original
-      Bun.write(join(FIXTURES, 'index.html'), originalHtml);
+      await Bun.write(join(FIXTURES, 'index.html'), originalHtml);
       rmSync(join(FIXTURES, 'index.html.bak'), { force: true });
     }
   });
@@ -209,7 +209,7 @@ describe('integration: build', () => {
       expect(html).toContain('href="/favicon-16x16.png"');
       expect(html).toContain('href="/favicon-32x32.png"');
     } finally {
-      Bun.write(join(FIXTURES, 'index.html'), originalHtml);
+      await Bun.write(join(FIXTURES, 'index.html'), originalHtml);
     }
   });
 
@@ -250,7 +250,7 @@ describe('integration: build', () => {
       expect(dataHref).not.toContain('?v=');
       expect(dataHref).not.toContain('&v=');
     } finally {
-      Bun.write(join(FIXTURES, 'index.html'), originalHtml);
+      await Bun.write(join(FIXTURES, 'index.html'), originalHtml);
     }
   });
 
@@ -268,7 +268,7 @@ describe('integration: build', () => {
       // inject:'embed' with default emit → file still on disk ("both").
       expect(files.has('favicon.ico')).toBe(true);
     } finally {
-      Bun.write(join(FIXTURES, 'index.html'), originalHtml);
+      await Bun.write(join(FIXTURES, 'index.html'), originalHtml);
     }
   });
 

@@ -21,7 +21,7 @@ export interface TagContext {
    * injection: the plugin returns a URI only for `embed`-kind injections (bytes
    * from `produce`); the CLI returns one for any injection (bytes read off disk).
    */
-  embed?: (inj: ResolvedInjection) => string | Promise<string> | undefined;
+  embed?: (inj: ResolvedInjection) => string | undefined | Promise<string | undefined>;
 }
 
 /** Prepend `base` to a filename (handles missing/trailing slashes). */
@@ -30,11 +30,18 @@ export function withBase(base: string, filename: string): string {
   return `${b}${filename.replace(/^\/+/, '')}`;
 }
 
-/** Append a cache-bust param to a href. `data:` URIs are returned untouched — a query param would corrupt inline bytes. */
+/**
+ * Append a cache-bust param to a href, keeping any `#fragment` aft the query so
+ * the browser still matches the resource. `data:` URIs are returned untouched —
+ * a query param would corrupt inline bytes.
+ */
 export function cacheBust(href: string, cacheId: string): string {
   if (href.startsWith('data:')) return href;
-  const sep = href.includes('?') ? '&' : '?';
-  return `${href}${sep}v=${cacheId}`;
+  const hashIndex = href.indexOf('#');
+  const base = hashIndex === -1 ? href : href.slice(0, hashIndex);
+  const hash = hashIndex === -1 ? '' : href.slice(hashIndex);
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}v=${cacheId}${hash}`;
 }
 
 /** Build Vite `<link>` tag descriptors from resolved injections. */

@@ -130,7 +130,11 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
      * inlines them by filename. Throws a clear error if a referenced file is missing.
      */
     async function embedResolverFor(assetDir: string): Promise<NonNullable<TagContext['embed']>> {
-      const names = sourceName ? [flags.output, sourceName] : [flags.output];
+      // Read exactly the files the resolved injections reference — not whatever
+      // `--source` implies. resolveSpecs() may drop an inert tag (e.g. an SVG
+      // source under `--input-format png`), and reading its file would fail for
+      // no user-visible reason.
+      const names = [...new Set(injections.flatMap((inj) => (inj.href.kind === 'file' ? [inj.href.filename] : [])))];
       const bytesByName = new Map<string, Buffer>();
       for (const name of names) {
         const path = resolve(assetDir, name);

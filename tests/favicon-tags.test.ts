@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'bun:test';
 
-import { buildFaviconTags } from '#faviconTags';
+import { buildFaviconTags, cacheBust } from '#faviconTags';
 import { resolveSpecs } from '#resolveSpecs';
 import { unwrap } from './_helpers.ts';
 
 const svgCtx = { inputFormat: 'svg' };
+
+describe('cacheBust', () => {
+  it('appends the version query to a plain href', () => {
+    expect(cacheBust('/favicon.svg', 'abc')).toBe('/favicon.svg?v=abc');
+  });
+
+  it('uses & when a query already exists', () => {
+    expect(cacheBust('/favicon.svg?x=1', 'abc')).toBe('/favicon.svg?x=1&v=abc');
+  });
+
+  it('inserts the version before a #fragment so the bust still matches', () => {
+    expect(cacheBust('/favicon.svg#icon', 'abc')).toBe('/favicon.svg?v=abc#icon');
+    expect(cacheBust('/favicon.svg?x=1#icon', 'abc')).toBe('/favicon.svg?x=1&v=abc#icon');
+  });
+
+  it('leaves data: URIs untouched', () => {
+    expect(cacheBust('data:image/svg+xml,STUB', 'abc')).toBe('data:image/svg+xml,STUB');
+  });
+});
 
 describe('buildFaviconTags', () => {
   it('builds a base-prefixed file href', async () => {
