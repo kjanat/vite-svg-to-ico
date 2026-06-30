@@ -62,6 +62,20 @@ describe('toDataUri — utf8 (SVG)', () => {
     expect(decoded).toBe(svg);
   });
 
+  it('survives the browser pipeline (URL parse) with CRLF and tabs intact', () => {
+    // A browser resolves the href through the WHATWG URL parser, which strips
+    // raw tab/LF/CR. Decode through `new URL()` — not just decodeURIComponent —
+    // to prove the line endings and indentation actually round-trip.
+    const svg = '<svg>\r\n\t<rect width="1"/>\r\n</svg>';
+    const uri = toDataUri(Buffer.from(svg), 'image/svg+xml', 'utf8');
+    const parsed = new URL(uri);
+    const decoded = decodeURIComponent(parsed.href.slice('data:image/svg+xml,'.length));
+    expect(decoded).toBe(svg);
+    // Belt and braces: a naïve unencoded body would lose these to URL parsing.
+    expect(uri).toContain('%0D%0A'); // CRLF
+    expect(uri).toContain('%09'); // tab
+  });
+
   it('utf8 is smaller than base64 for typical SVG', () => {
     const utf8 = toDataUri(Buffer.from(SVG), 'image/svg+xml', 'utf8');
     const b64 = toDataUri(Buffer.from(SVG), 'image/svg+xml', 'base64');

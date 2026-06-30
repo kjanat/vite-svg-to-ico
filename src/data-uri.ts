@@ -35,6 +35,10 @@ import type { DataUriEncoding } from '#types';
  *   `&` themselves (the CLI's `renderTag` only escapes `"`).
  * - `#` → `%23` would otherwise start a URL fragment.
  * - `<` / `>` → `%3C` / `%3E` close out of the attribute / are invalid in a URI.
+ * - `\t` / `\n` / `\r` → `%09` / `%0A` / `%0D`. The WHATWG URL parser strips raw
+ *   ASCII tab/LF/CR from any URL (and HTML normalizes CR/CRLF to LF before that),
+ *   so an unencoded line ending would silently vanish from the decoded SVG —
+ *   breaking the byte-for-byte round-trip for any multi-line or CRLF source.
  */
 function escapeSvgUtf8(svg: string): string {
   return svg
@@ -43,7 +47,10 @@ function escapeSvgUtf8(svg: string): string {
     .replace(/&/g, '%26')
     .replace(/#/g, '%23')
     .replace(/</g, '%3C')
-    .replace(/>/g, '%3E');
+    .replace(/>/g, '%3E')
+    .replace(/\t/g, '%09')
+    .replace(/\n/g, '%0A')
+    .replace(/\r/g, '%0D');
 }
 
 /**
