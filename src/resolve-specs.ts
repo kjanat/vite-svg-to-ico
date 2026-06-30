@@ -18,7 +18,8 @@
  * and `transformIndexHtml`.
  */
 
-import type { EmitSpec, IconSize } from '#types';
+import { type IconSize, parseSize } from '#size';
+import type { DataUriEncoding, EmitSpec } from '#types';
 
 /** One file the plugin will produce on disk (build) or serve at a URL (dev). */
 export interface ResolvedFile {
@@ -44,13 +45,29 @@ export type ResolvedFileSource =
   | { kind: 'png'; size: IconSize }
   | { kind: 'source-copy' };
 
-/** One `<link>` tag to inject. The plugin layer fills in `base` and cache-bust on the href. */
+/**
+ * Where an injected `<link>`'s `href` comes from. Discriminated by `kind`:
+ *
+ * - `file` — points at an emitted file; the plugin prepends `base` and a
+ *   cache-bust param to {@link filename}.
+ * - `embed` — inlines the bytes as a `data:` URI; the plugin produces the
+ *   bytes from {@link source} (the same producer used for emitted files) and
+ *   encodes them per {@link encoding}. No `base`/cache-bust applies.
+ *
+ * Splitting these keeps illegal states unrepresentable: a file href has no
+ * bytes, an embed href has no filename.
+ */
+export type InjectionHref =
+  | { kind: 'file'; filename: string }
+  | { kind: 'embed'; source: ResolvedFileSource; encoding: DataUriEncoding };
+
+/** One `<link>` tag to inject. The plugin layer resolves {@link href} into a concrete string. */
 export interface ResolvedInjection {
   tag: 'link';
   rel: 'icon';
   type: string;
-  /** Path relative to base, e.g. `'favicon.ico'`, `'favicon-16x16.png'`, `'logo.svg'`. */
-  filename: string;
+  /** How to fill the tag's `href` — a file reference or inlined bytes. */
+  href: InjectionHref;
   /** Optional `sizes` attribute (`'16x16 32x32'` for ICO, `'any'` for SVG, `'NxN'` for per-size PNG). */
   sizes?: string;
 }
@@ -61,10 +78,28 @@ export interface SpecResolution {
   injections: ResolvedInjection[];
   /** Union of every size mentioned in any spec — feed this to `generateSizedPngs`. */
   requiredSizes: IconSize[];
-  /** Whether at least one spec produces a source-copy (drives `inputBuffer` read in the plugin). */
-  needsSourceCopy: boolean;
-  /** Whether at least one spec has `inject: true` (drives the no-op warning when transformIndexHtml never fires). */
+  /** Whether at least one spec injects a tag (drives the no-op warning when transformIndexHtml never fires). */
   hasAnyInjection: boolean;
+  /** Non-fatal configuration warnings (e.g. a spec that emits nothing and injects nothing). */
+  warnings: string[];
+}
+
+/**
+ * Build the no-output warning for a spec that neither writes a file nor inlines
+ * bytes, or `null` when the spec produces something. `hasInject` distinguishes
+ * "a URL link to a file that won't exist" from "nothing configured at all".
+ */
+function noOutputWarning(
+  index: number,
+  format: string,
+  willEmit: boolean,
+  producesEmbed: boolean,
+  hasInject: boolean,
+): string | null {
+  if (willEmit || producesEmbed) return null;
+  return hasInject
+    ? `emit[${index}] (${format}): \`inject\` links a file but \`emit\` is false, so the target won't exist. Use \`inject: 'embed'\` to inline the bytes, or set \`emit: true\`.`
+    : `emit[${index}] (${format}): \`emit: false\` with no \`inject\` produces no output. Remove the spec or enable one.`;
 }
 
 /** Resolve normalized specs into the file and injection lists the plugin layer consumes. */
@@ -72,12 +107,12 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
   const files: ResolvedFile[] = [];
   const injections: ResolvedInjection[] = [];
   const sizeSet = new Set<IconSize>();
-  let needsSourceCopy = false;
+  const warnings: string[] = [];
 
-  for (const spec of specs) {
+  for (const [i, spec] of specs.entries()) {
     switch (spec.format) {
       case 'ico': {
-        const sizes = spec.sizes ?? [];
+        const sizes = (spec.sizes ?? []).map((s) => parseSize(s, 256));
         const filename = spec.filename ?? 'favicon.ico';
         for (const s of sizes) sizeSet.add(s);
         const [only] = sizes;
@@ -85,58 +120,79 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
           sizes.length === 1 && only !== undefined
             ? { kind: 'single-ico', size: only }
             : { kind: 'combined-ico', sizes };
-        files.push({ filename, mime: 'x-icon', source });
+        const willEmit = spec.emit ?? true;
+        if (willEmit) files.push({ filename, mime: 'x-icon', source });
         if (spec.inject) {
           injections.push({
             tag: 'link',
             rel: 'icon',
             type: 'image/x-icon',
-            filename,
+            href: spec.inject === 'embed' ? { kind: 'embed', source, encoding: 'base64' } : { kind: 'file', filename },
             sizes: sizes.map((s) => `${s}x${s}`).join(' '),
           });
         }
+        const w = noOutputWarning(i, 'ico', willEmit, spec.inject === 'embed', !!spec.inject);
+        if (w) warnings.push(w);
         break;
       }
       case 'png': {
         const tmpl = spec.filenameTemplate ?? 'favicon-{size}x{size}.png';
-        const injectMode = spec.inject;
-        const injectSizes =
-          injectMode === true
-            ? new Set(spec.sizes)
-            : injectMode && typeof injectMode === 'object' && injectMode.sizes
-              ? new Set(injectMode.sizes)
-              : null;
-        for (const size of spec.sizes) {
+        const inj = spec.inject;
+        // Which sizes get a tag (membership only — kept as raw numbers), and
+        // whether those tags inline the bytes.
+        let injectSizes: Set<number> | null;
+        let embed = false;
+        if (inj === true) {
+          injectSizes = new Set(spec.sizes);
+        } else if (inj === 'embed') {
+          injectSizes = new Set(spec.sizes);
+          embed = true;
+        } else if (inj && typeof inj === 'object') {
+          injectSizes = new Set(inj.sizes ?? spec.sizes);
+          embed = inj.embed ?? false;
+        } else {
+          injectSizes = null;
+        }
+        const willEmit = spec.emit ?? true;
+        for (const rawSize of spec.sizes) {
+          const size = parseSize(rawSize, 4096);
           sizeSet.add(size);
           const filename = tmpl.replace(/\{size\}/g, String(size));
-          files.push({ filename, mime: 'png', source: { kind: 'png', size } });
+          const source: ResolvedFileSource = { kind: 'png', size };
+          if (willEmit) files.push({ filename, mime: 'png', source });
           if (injectSizes?.has(size)) {
             injections.push({
               tag: 'link',
               rel: 'icon',
               type: 'image/png',
-              filename,
+              href: embed ? { kind: 'embed', source, encoding: 'base64' } : { kind: 'file', filename },
               sizes: `${size}x${size}`,
             });
           }
         }
+        const w = noOutputWarning(i, 'png', willEmit, embed && injectSizes !== null, inj != null && inj !== false);
+        if (w) warnings.push(w);
         break;
       }
       case 'svg': {
         // Source copy is only meaningful for SVG inputs.
         if (ctx.inputFormat !== 'svg') break;
-        needsSourceCopy = true;
+        const willEmit = spec.emit ?? true;
+        const isEmbed = spec.inject === 'embed';
         const filename = spec.filename ?? 'favicon.svg';
-        files.push({ filename, mime: 'svg+xml', source: { kind: 'source-copy' } });
+        const source: ResolvedFileSource = { kind: 'source-copy' };
+        if (willEmit) files.push({ filename, mime: 'svg+xml', source });
         if (spec.inject) {
           injections.push({
             tag: 'link',
             rel: 'icon',
             type: 'image/svg+xml',
-            filename,
+            href: isEmbed ? { kind: 'embed', source, encoding: spec.encoding ?? 'base64' } : { kind: 'file', filename },
             sizes: 'any',
           });
         }
+        const w = noOutputWarning(i, 'svg', willEmit, isEmbed, !!spec.inject);
+        if (w) warnings.push(w);
         break;
       }
     }
@@ -146,7 +202,7 @@ export function resolveSpecs(specs: EmitSpec[], ctx: { inputFormat: string }): S
     files,
     injections,
     requiredSizes: [...sizeSet].sort((a, b) => a - b),
-    needsSourceCopy,
     hasAnyInjection: injections.length > 0,
+    warnings,
   };
 }

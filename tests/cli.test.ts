@@ -1,6 +1,6 @@
 import { $ } from 'bun';
 import { describe, expect, it } from 'bun:test';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { cwd } from 'node:process';
@@ -229,5 +229,64 @@ describe('CLI: inject', () => {
     expect(all).toContain('file not found');
     // the present one still got rewritten
     expect(await readFile(present, 'utf8')).toContain('/favicon.ico');
+  });
+
+  it('--embed inlines the ICO as a base64 data: URI (no file reference)', async () => {
+    const dir = await setupTmp();
+    const file = join(dir, 'index.html');
+    await writeFile(file, '<head></head>');
+    const icoBytes = Buffer.from([0, 0, 1, 0, 1, 0, 16, 16]); // arbitrary ICO-ish bytes
+    await writeFile(join(dir, 'favicon.ico'), icoBytes);
+
+    const result = await runCommand(inject, [file, '--embed']);
+    expect(result.exitCode).toBe(0);
+
+    const updated = await readFile(file, 'utf8');
+    expect(updated).toContain(`href="data:image/x-icon;base64,${icoBytes.toString('base64')}"`);
+    expect(updated).not.toContain('href="/favicon.ico"');
+  });
+
+  it('--embed --encoding utf8 inlines the SVG source as a readable data: URI', async () => {
+    const dir = await setupTmp();
+    const file = join(dir, 'index.html');
+    await writeFile(file, '<head></head>');
+    await writeFile(join(dir, 'favicon.ico'), Buffer.from([0, 0, 1, 0]));
+    await writeFile(join(dir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
+
+    const result = await runCommand(inject, [file, '--source', 'favicon.svg', '--embed', '--encoding', 'utf8']);
+    expect(result.exitCode).toBe(0);
+
+    const updated = await readFile(file, 'utf8');
+    // SVG inlined as utf8, not a file reference. Bytes preserved verbatim —
+    // double quotes percent-encode to %22 rather than swapping to single quotes.
+    expect(updated).toContain('href="data:image/svg+xml,');
+    expect(updated).toContain('xmlns=%22http://www.w3.org/2000/svg%22');
+    expect(updated).not.toContain('href="/favicon.svg"');
+    // ICO is always base64.
+    expect(updated).toContain('href="data:image/x-icon;base64,');
+  });
+
+  it('--embed reads from --asset-dir when the assets live elsewhere', async () => {
+    const dir = await setupTmp();
+    const pages = join(dir, 'pages');
+    await mkdir(pages, { recursive: true });
+    const file = join(pages, 'index.html');
+    await writeFile(file, '<head></head>');
+    const icoBytes = Buffer.from([1, 2, 3, 4]);
+    await writeFile(join(dir, 'favicon.ico'), icoBytes); // in dir, not next to the HTML
+
+    const result = await runCommand(inject, [file, '--embed', '--asset-dir', dir]);
+    expect(result.exitCode).toBe(0);
+    expect(await readFile(file, 'utf8')).toContain(`data:image/x-icon;base64,${icoBytes.toString('base64')}`);
+  });
+
+  it('--embed fails clearly when the referenced file is missing', async () => {
+    const dir = await setupTmp();
+    const file = join(dir, 'index.html');
+    await writeFile(file, '<head></head>'); // no favicon.ico written
+
+    const result = await runCommand(inject, [file, '--embed']);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr.join('')).toContain('cannot read');
   });
 });

@@ -57,18 +57,6 @@ describe('svgToIco plugin factory', () => {
     expect(plugins).toHaveLength(3);
   });
 
-  it('accepts all emitSizes formats', () => {
-    for (const fmt of ['png', 'ico', 'both', true, false] as const) {
-      expect(() => svgToIco({ input: FIXTURE, emit: { sizes: fmt } })).not.toThrow();
-    }
-  });
-
-  it('accepts all inject modes (legacy)', () => {
-    for (const mode of ['minimal', 'full', true, false] as const) {
-      expect(() => svgToIco({ input: FIXTURE, emit: { inject: mode } })).not.toThrow();
-    }
-  });
-
   it('accepts v3 EmitSpec array', () => {
     expect(() =>
       svgToIco({
@@ -126,18 +114,6 @@ describe('v3 EmitSpec normalization', () => {
     callConfigResolved(unwrap(plugins[0]), { root: '/tmp', base: '/', logger });
     return plugins;
   }
-
-  it('v2 emit shape logs deprecation warning once', () => {
-    const { logger, warns } = captureLogger();
-    runConfig({ input: FIXTURE, emit: { source: true, inject: 'full' } }, logger);
-    expect(warns.filter((w) => w.includes('deprecated'))).toHaveLength(1);
-  });
-
-  it('v3 emit array does NOT log deprecation warning', () => {
-    const { logger, warns } = captureLogger();
-    runConfig({ input: FIXTURE, emit: [{ format: 'ico', sizes: [16] }] }, logger);
-    expect(warns.filter((w) => w.includes('deprecated'))).toHaveLength(0);
-  });
 
   it('rejects PngSpec without sizes', () => {
     const { logger } = captureLogger();
@@ -246,18 +222,6 @@ describe('config plugin validation', () => {
     expect(() => runConfigResolved({ input: 'icon.svg', sizes: [0] })).toThrow('Invalid sizes');
     expect(() => runConfigResolved({ input: 'icon.svg', sizes: [257] })).toThrow('Invalid sizes');
     expect(() => runConfigResolved({ input: 'icon.svg', sizes: [1.5] })).toThrow('Invalid sizes');
-  });
-
-  it('throws on invalid emitSizes string', () => {
-    expect(() =>
-      runConfigResolved({ input: 'icon.svg', emit: invalid<PluginOptions['emit']>({ sizes: 'bad' }) }),
-    ).toThrow('Invalid emitSizes value');
-  });
-
-  it('throws on invalid inject string', () => {
-    expect(() =>
-      runConfigResolved({ input: 'icon.svg', emit: invalid<PluginOptions['emit']>({ inject: 'bad' }) }),
-    ).toThrow('Invalid inject value');
   });
 
   it('passes with valid options', () => {

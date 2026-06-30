@@ -17,6 +17,11 @@ jobs:
       - uses: kjanat/runner@master
       - uses: oven-sh/setup-bun@v2
       - run: runner install fmt:autofix
-      - if: github.ref_name == 'master'
+      - if: github.ref_name == 'master' && github.event_name == 'push'
         run: run fmt:cfg:up
+      - if: github.ref_name == 'master' && github.event_name == 'push'
+        run: |
+          git ls-remote "https://github.com/kjanat/kjanat.git" HEAD | awk '{print substr($1, 1, 8)}' \
+          | xargs -r -I{} sed -i -E 's#(github\.com/kjanat/kjanat/raw/)[0-9a-zA-Z]{4,40}(/configs/dprint\.remote\.json)#\1{}\2#g' \
+            .dprint.jsonc
       - uses: autofix-ci/action@v1

@@ -1,7 +1,12 @@
 import { blue, green, red } from '#cli/colors';
+import { pathFlag } from '#cli/flags/path';
 import { sizesFlag } from '#cli/flags/sizes';
-import { buildFaviconTags, injectTagsIntoHtml } from '#html';
-import { INJECT_MODES } from '#types';
+import { toDataUri } from '#dataUri';
+import { buildFaviconTags, type TagContext } from '#faviconTags';
+import { injectTagsIntoHtml } from '#injectHtml';
+import { resolveSpecs } from '#resolveSpecs';
+import type { EmitSpec } from '#types';
+import { DATA_URI_ENCODINGS } from '#types';
 import { arg, CLIError, command, flag } from '@kjanat/dreamcli';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -15,11 +20,12 @@ import { dirname, resolve } from 'node:path';
  */
 export const inject = command('inject')
   .description(
-    `Rewrite existing HTML files on disk: strip ${blue('<link rel="') + red('icon') + blue('">')} and ${
+    `Rewrite existing HTML files on disk:
+strip ${blue('<link rel="') + red('icon') + blue('">')} and ${
       blue('<link rel="') + red('shortcut icon') + blue('">')
-    } tags (preserves ${red('apple-touch-icon')}), splice in the configured favicon tag set before ${blue(
-      '</head>',
-    )}, and write back. The ICO/SVG files themselves are expected to already exist at the configured paths.`,
+    } tags (preserves ${red('apple-touch-icon')}),
+splice in the configured favicon tag set before ${blue('</head>')}, and write back.
+The ICO/SVG files themselves are expected to already exist at the configured paths.`,
   )
   .arg(
     'files',
@@ -41,16 +47,6 @@ export const inject = command('inject')
       ),
   )
   .flag('sizes', sizesFlag())
-  .flag(
-    'mode',
-    flag
-      .enum(INJECT_MODES)
-      .alias('m')
-      .default('minimal')
-      .describe(
-        `Tag set to inject. ${red('minimal')}: ICO + optional SVG source link. ${red('full')}: also per-size PNG/ICO links.`,
-      ),
-  )
   .flag(
     'base',
     flag
@@ -79,14 +75,42 @@ export const inject = command('inject')
         `Format of ${blue('--source')} for the MIME type attribute. Only ${red('svg')} triggers the SVG ${blue('<link>')}; other values are accepted but currently inert in tag generation.`,
       ),
   )
+  .flag(
+    'embed',
+    flag
+      .boolean()
+      .default(false)
+      .describe(
+        `Inline the favicon bytes as ${blue('data:')} URIs instead of URL hrefs — the ${blue('<link>')} carries the image itself, no file reference. Reads the referenced files from ${blue('--asset-dir')}.`,
+      ),
+  )
+  .flag(
+    'encoding',
+    flag
+      .enum(DATA_URI_ENCODINGS)
+      .default('base64')
+      .describe(
+        `Encoding for an embedded SVG ${blue('--source')}: ${red('base64')} or ${red('utf8')} (smaller, human-readable). Binary ICO is always ${red('base64')}. Only applies with ${blue('--embed')}.`,
+      ),
+  )
+  .flag(
+    'asset-dir',
+    pathFlag().describe(
+      `Directory to read favicon files from when ${blue('--embed')} is set. Defaults to each HTML file's own directory.`,
+    ),
+  )
   .example(green('inject build/index.html'), 'Inject default favicon.ico tag (16/32/48) into a single file.')
   .example(
     green('inject build/index.html build/404.html -s16 -s32 -s48 --source favicon.svg'),
     `Multi-file rewrite, also injects SVG source ${blue('<link>')}.`,
   )
   .example(
-    green('inject dist/index.html --base /repo/ -m full'),
-    'Full tag set under a subpath base (e.g. GitHub Pages project site).',
+    green('inject dist/index.html --base /repo/'),
+    'Inject under a subpath base (e.g. GitHub Pages project site).',
+  )
+  .example(
+    green('inject dist/index.html --source favicon.svg --embed --encoding utf8'),
+    'Inline the ICO + SVG straight into the HTML as data: URIs (no file references).',
   )
   .action(async ({ args, flags, out }) => {
     const { error, log } = out;
@@ -94,18 +118,41 @@ export const inject = command('inject')
     if (files.length === 0) {
       throw new CLIError('At least one HTML file path is required', { code: 'MISSING_FILES' });
     }
-    const sizes = flags.sizes;
-    const mode = flags.mode;
     const sourceName = flags.source;
-    const tags = buildFaviconTags({
-      output: flags.output,
-      sizes,
-      sourceEmitted: !!sourceName,
-      sourceName: sourceName ?? '',
-      inputFormat: flags['input-format'],
-      mode,
-      base: flags.base,
-    });
+    // Build the same spec model the plugin uses, then resolve to injections.
+    const specs: EmitSpec[] = [{ format: 'ico', sizes: flags.sizes, filename: flags.output, inject: true }];
+    if (sourceName) specs.push({ format: 'svg', filename: sourceName, inject: true });
+    const { injections } = resolveSpecs(specs, { inputFormat: flags['input-format'] });
+
+    /**
+     * Read the favicon files an embed run needs (ICO, plus the SVG source if
+     * set) from `assetDir`, returning a {@link TagContext} embed resolver that
+     * inlines them by filename. Throws a clear error if a referenced file is missing.
+     */
+    async function embedResolverFor(assetDir: string): Promise<NonNullable<TagContext['embed']>> {
+      // Read exactly the files the resolved injections reference — not whatever
+      // `--source` implies. resolveSpecs() may drop an inert tag (e.g. an SVG
+      // source under `--input-format png`), and reading its file would fail for
+      // no user-visible reason.
+      const names = [...new Set(injections.flatMap((inj) => (inj.href.kind === 'file' ? [inj.href.filename] : [])))];
+      const bytesByName = new Map<string, Buffer>();
+      for (const name of names) {
+        const path = resolve(assetDir, name);
+        try {
+          bytesByName.set(name, await readFile(path));
+        } catch (e) {
+          throw new CLIError(`inject --embed: cannot read "${name}" at ${path}: ${(e as Error).message}`, {
+            code: 'EMBED_READ',
+          });
+        }
+      }
+      return (inj) => {
+        if (inj.href.kind !== 'file') return undefined;
+        const bytes = bytesByName.get(inj.href.filename);
+        if (!bytes) return undefined; // not pre-read → leave the URL href untouched
+        return toDataUri(bytes, inj.type, inj.type === 'image/svg+xml' ? flags.encoding : 'base64');
+      };
+    }
 
     let rewritten = 0;
     for (const rel of files) {
@@ -120,6 +167,9 @@ export const inject = command('inject')
         }
         throw e;
       }
+      // Embedded hrefs read assets per file (default: the HTML's own directory).
+      const embed = flags.embed ? await embedResolverFor(flags['asset-dir'] ?? dirname(abs)) : undefined;
+      const tags = await buildFaviconTags(injections, { base: flags.base, embed });
       const next = injectTagsIntoHtml(original, tags);
       if (next !== original) {
         const dir = dirname(abs);

@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-06-30
+
+### Removed (BREAKING)
+
+- Dropped the v2 `emit: { source, sizes, inject }` object shape — `emit` now
+  accepts only an `EmitSpec[]` array. Removed the exported types
+  `LegacyEmitOptions`, `EmitOptions`, `isLegacyEmit`, `NormalizedEmit`,
+  `IncludeSourceOptions`, `EmitSizesFormat`, and `EMIT_SIZES_FORMATS`.
+- Removed the inert `--mode`/`-m` flag from the `svg-to-ico inject` CLI and the
+  now-unused `InjectMode` / `INJECT_MODES` exports — the flag never affected
+  output (the CLI emits ICO + optional SVG links regardless).
+
+  | v2 (removed)                                | v3/v4                                                                      |
+  | ------------------------------------------- | -------------------------------------------------------------------------- |
+  | `emit: { source: true }`                    | `emit: [{ format: 'ico' }, { format: 'svg' }]`                             |
+  | `emit: { sizes: 'png' }`                    | `emit: [{ format: 'ico' }, { format: 'png', sizes: [16, 32, 48] }]`        |
+  | `emit: { sizes: 'ico' }`                    | `emit: [{ format: 'ico' }, { format: 'ico', sizes: [n], filename: … }, …]` |
+  | `emit: { source: true, inject: 'minimal' }` | `emit: [{ format: 'ico', inject: true }, { format: 'svg', inject: true }]` |
+  | `emit: { inject: 'full', sizes: 'png' }`    | add `{ format: 'png', sizes: […], inject: true }` to the array             |
+
+### Internal
+
+- Restructured the library internals (`src/*.ts`) by pipeline stage: a single
+  `parseConfig` boundary (`config.ts`) replaces three scattered parse/validate
+  sites; one shared favicon-tag builder (`favicon-tags.ts`) serves both the
+  plugin and the CLI (removing the duplicated `withBase`/`<link>` logic); byte
+  production moves into a testable `AssetProducer` (`assets.ts`); `index.ts`
+  shrinks from ~600 to ~300 lines. `ico.ts` split into `raster.ts` (sharp) +
+  `ico.ts` (packing); `html.ts` split into `favicon-tags.ts` + `inject-html.ts`.
+  `IconSize` is now a branded type produced by `parseSize` at the boundary
+  (public option fields remain plain `number`). No runtime behavior change
+  beyond the v2 removal above.
+
+### Added
+
+- Embed favicons inline as `data:` URIs instead of (or alongside) emitting
+  files. Each `ico`/`png`/`svg` emit spec gains two orthogonal knobs:
+  - `inject: 'embed'` — the injected `<link>`'s `href` carries the image
+    bytes as a `data:` URI (base64 for binary, configurable for SVG) rather
+    than pointing at a file.
+  - `emit: false` — skip writing the file to disk; only meaningful with
+    `inject: 'embed'` (embed without a file). Defaults to `true`.
+  - `SvgSpec.encoding: 'base64' | 'utf8'` — `utf8` produces a smaller,
+    human-readable `data:image/svg+xml,…` URI. Defaults to `'base64'`.
+  - PNG specs also accept `{ sizes, embed: true }` to inline a subset.
+
+  Data-URI hrefs are never cache-busted (a query param would corrupt the
+  bytes), and the dev HMR client skips them. A spec that writes nothing and
+  injects nothing now emits a one-time config warning.
+
+- `svg-to-ico inject` gained matching `--embed` / `--encoding` / `--asset-dir`
+  flags: inline the referenced ICO (and SVG `--source`) straight into the
+  rewritten HTML as `data:` URIs instead of URL `<link href>`s. Assets are
+  read from `--asset-dir` (default: each HTML file's own directory).
+
 ### Changed
 
 - CLI help/deprecation output now renders OSC 8 terminal hyperlinks

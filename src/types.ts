@@ -17,9 +17,6 @@ export interface PluginOptions {
    */
   input: string | URL;
   /** Default ICO filename, used as a fallback when an {@link IcoSpec} omits `filename`.
-   *
-   * @deprecated In v3, prefer specifying `filename` on an {@link IcoSpec}
-   *   inside the `emit` array. Retained for the v2 shim and as a fallback.
    * @default 'favicon.ico'
    */
   output?: string;
@@ -29,10 +26,8 @@ export interface PluginOptions {
    * Must be integers in the range 1–256 per the ICO spec.
    * @default [16, 32, 48]
    */
-  sizes?: IconSize | IconSize[];
-  /** What this plugin emits and how it injects tags.
-   *
-   * **v3 shape** — an array of per-format specs (recommended):
+  sizes?: number | number[];
+  /** What this plugin emits and how it injects tags — an array of per-format specs:
    *
    * ```ts
    * emit: [
@@ -42,14 +37,10 @@ export interface PluginOptions {
    * ]
    * ```
    *
-   * **v2 shape** — `{ source, sizes, inject }` object. Still accepted; the
-   *   plugin translates it to v3 internally and logs a one-time deprecation
-   *   warning. Will be removed in v4.
-   *
    * Omitted entirely → defaults to `[{ format: 'ico' }]` (one combined
    *   favicon.ico using top-level `sizes`).
    */
-  emit?: EmitSpec[] | LegacyEmitOptions;
+  emit?: EmitSpec[];
   /** Sharp image processing options. */
   sharp?: SharpOptions;
   /** Control dev-server behavior.
@@ -73,11 +64,25 @@ export type EmitFormat = (typeof EMIT_FORMATS)[number];
 export interface IcoSpec {
   format: 'ico';
   /** Sizes to pack into this ICO (1–256). Falls back to {@link PluginOptions.sizes} when omitted. */
-  sizes?: IconSize[];
+  sizes?: number[];
   /** Output filename for this ICO. Falls back to {@link PluginOptions.output} or `'favicon.ico'`. */
   filename?: string;
-  /** Inject a `<link rel="icon" type="image/x-icon">` tag pointing at this ICO. @default false */
-  inject?: boolean;
+  /** Write the ICO file to disk (or serve it in dev).
+   *
+   * Set `false` to skip the file entirely — only meaningful alongside
+   * `inject: 'embed'`, which inlines the bytes into the HTML instead.
+   * @default true */
+  emit?: boolean;
+  /** Inject a `<link rel="icon" type="image/x-icon">` tag for this ICO.
+   *
+   * - `false` — no tag (default). Browsers still auto-request `/favicon.ico`,
+   *   so an emit-only ICO already works as a silent fallback.
+   * - `true` — tag whose `href` points at the emitted file.
+   * - `'embed'` — tag whose `href` inlines the ICO bytes as a base64
+   *   `data:` URI (no file reference). Combine with `emit: false` to embed
+   *   without writing a file, or `emit: true` to do both.
+   * @default false */
+  inject?: boolean | 'embed';
 }
 
 /** Emit one PNG file per requested size. */
@@ -88,15 +93,26 @@ export interface PngSpec {
    * Standalone PNGs aren't bound by ICO's 8-bit width/height field — sizes
    * like `192` (Android), `512` (PWA manifest), `1024` (retina) are all valid.
    */
-  sizes: IconSize[];
+  sizes: number[];
   /** Filename template using `{size}` as a placeholder. @default `'favicon-{size}x{size}.png'` */
   filenameTemplate?: string;
+  /** Write the PNG files to disk (or serve them in dev).
+   *
+   * Set `false` to skip the files — only meaningful with `inject: 'embed'`
+   * (or `{ embed: true }`), which inlines each PNG as a base64 `data:` URI.
+   * Note: inlining icon-sized PNGs defeats browser caching; prefer URL links
+   * unless you specifically want a self-contained document.
+   * @default true */
+  emit?: boolean;
   /** Inject `<link rel="icon" type="image/png">` tags.
    *
-   * - `true` — inject one tag per size in {@link sizes}.
    * - `false` — inject nothing (default).
-   * - `{ sizes }` — inject tags only for the listed sizes (must be a subset of {@link sizes}). */
-  inject?: boolean | { sizes?: IconSize[] };
+   * - `true` — one URL tag per size in {@link sizes}.
+   * - `'embed'` — one base64 `data:` URI tag per size in {@link sizes}.
+   * - `{ sizes }` — tags only for the listed sizes (must be a subset of
+   *   {@link sizes}). Omit `sizes` to target every size.
+   * - `{ sizes, embed: true }` — as above, but inlined as `data:` URIs. */
+  inject?: boolean | 'embed' | { sizes?: number[]; embed?: boolean };
 }
 
 /** Emit a copy of the source image (only meaningful when input is an SVG). */
@@ -104,54 +120,29 @@ export interface SvgSpec {
   format: 'svg';
   /** Output filename for the copied source. Defaults to `basename(input)`. */
   filename?: string;
-  /** Inject a `<link rel="icon" type="image/svg+xml">` tag pointing at this file. @default false */
-  inject?: boolean;
-}
-
-/** v2 shape kept for backward compatibility; will be removed in v4. Use {@link EmitSpec}[] instead.
- *
- * @deprecated Use the v3 {@link EmitSpec}[] form on {@link PluginOptions.emit}.
- */
-export interface LegacyEmitOptions {
-  /** Copy the source file to output alongside the ICO.
+  /** Write the SVG file to disk (or serve it in dev).
    *
-   * Pass `true` to emit with the original basename, or an object to customise.
-   * @default false
-   */
-  source?: boolean | { name?: string; enabled?: boolean };
-  /** Emit individual per-size files alongside the combined ICO.
+   * Set `false` to skip the file — only meaningful with `inject: 'embed'`,
+   * which inlines the SVG into the HTML instead.
+   * @default true */
+  emit?: boolean;
+  /** Inject a `<link rel="icon" type="image/svg+xml">` tag for this SVG.
    *
-   * - `false` — only emit combined ICO (default)
-   * - `true` | `'png'` — emit PNG files for each size
-   * - `'ico'` — emit single-entry ICO files per size
-   * - `'both'` — emit both PNG and ICO per size
-   * @default false
-   */
-  sizes?: boolean | EmitSizesFormat;
-  /** Inject `<link>` tags for generated favicons into `index.html`.
+   * - `false` — no tag (default).
+   * - `true` — tag whose `href` points at the emitted file.
+   * - `'embed'` — tag whose `href` inlines the SVG as a `data:` URI (see
+   *   {@link encoding}). Combine with `emit: false` to embed without writing
+   *   a file ("all the way in there"), or `emit: true` to do both.
+   * @default false */
+  inject?: boolean | 'embed';
+  /** Encoding used when `inject: 'embed'`.
    *
-   * - `true` | `'minimal'` — ICO + SVG source (if SVG input + source emitted)
-   * - `'full'` — all emitted files (ICO, SVG, per-size PNGs)
-   * - `false` — no injection
-   * @default false
-   */
-  inject?: boolean | InjectMode;
-}
-
-/** @deprecated Old name preserved for the v2 type export. Use {@link LegacyEmitOptions}. */
-export type EmitOptions = LegacyEmitOptions;
-
-/** Type guard: distinguishes v3 {@link EmitSpec}[] from v2 {@link LegacyEmitOptions} object. */
-export function isLegacyEmit(emit: unknown): emit is LegacyEmitOptions {
-  return emit !== null && typeof emit === 'object' && !Array.isArray(emit);
-}
-
-/** Resolved emit configuration after normalization: always an {@link EmitSpec}[] with no `undefined` slots. */
-export interface NormalizedEmit {
-  /** Resolved specs in execution order. */
-  specs: EmitSpec[];
-  /** Whether the input used the v2 {@link LegacyEmitOptions} shape (drives one-time deprecation warning). */
-  wasLegacy: boolean;
+   * - `'base64'` (default) — `data:image/svg+xml;base64,…`. Opaque, uniform
+   *   with binary formats, ~33% larger than the source.
+   * - `'utf8'` — `data:image/svg+xml,…` with minimal percent-escaping. Keeps
+   *   the markup human-readable and is typically smaller than base64.
+   * @default 'base64' */
+  encoding?: DataUriEncoding;
 }
 
 /** Sharp image processing options. */
@@ -181,23 +172,7 @@ export interface SharpOptions {
   png?: Omit<PngOptions, 'force'>;
 }
 
-/** Common ICO pixel dimensions with IDE autocompletion; any integer 1–256 is accepted. */
-export type IconSize = 16 | 24 | 32 | 48 | 64 | 128 | 256 | (number & {});
-
-/** Fine-grained control for emitting the source SVG alongside the ICO. */
-export interface IncludeSourceOptions {
-  /** Override the output filename for the emitted source.
-   * @default basename(input) */
-  name?: string;
-  /** Whether to emit the source file.
-   * @default true */
-  enabled?: boolean;
-}
-
-/** Valid string values for {@link PluginOptions.emitSizes}. */
-export const EMIT_SIZES_FORMATS = ['png', 'ico', 'both'] as const;
-/** Format for individually-emitted per-size files. */
-export type EmitSizesFormat = (typeof EMIT_SIZES_FORMATS)[number];
+export type { IconSize } from '#size';
 
 /** Valid string values for {@link PluginOptions.dev} injection mode. */
 export const DEV_INJECTIONS = ['transform', 'shim'] as const;
@@ -218,10 +193,10 @@ export interface DevOptions {
   hmr?: boolean;
 }
 
-/** Valid string values for {@link PluginOptions.inject}. */
-export const INJECT_MODES = ['minimal', 'full'] as const;
-/** Mode for HTML `<link>` tag injection. */
-export type InjectMode = (typeof INJECT_MODES)[number];
+/** Valid encodings for an embedded (`inject: 'embed'`) favicon `data:` URI. */
+export const DATA_URI_ENCODINGS = ['base64', 'utf8'] as const;
+/** How embedded favicon bytes are encoded into a `data:` URI. See {@link SvgSpec.encoding}. */
+export type DataUriEncoding = (typeof DATA_URI_ENCODINGS)[number];
 
 /** Supported input image formats (sharp-compatible file extensions including the leading dot). */
 export const SUPPORTED_EXTENSIONS = new Set([

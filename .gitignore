@@ -73,6 +73,11 @@ web_modules/
 # Output of 'npm pack'
 *.tgz
 
+# Smoke-fixture lockfile: pins the integrity of the packed tarball, which is
+# rebuilt from changing source on every `pretest` run. Tracking it would drift
+# and break CI's frozen install — the fixture regenerates it each run instead.
+tests/smoke/fixture/bun.lock
+
 # Yarn Integrity file
 .yarn-integrity
 
@@ -161,3 +166,4 @@ dist
 AGENTS.md
 /_*.md
 /.idea/
+superpowers/
