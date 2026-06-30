@@ -2,8 +2,10 @@ import { blue, green, red } from '#cli/colors';
 import { pathFlag } from '#cli/flags/path';
 import { sizesFlag } from '#cli/flags/sizes';
 import { toDataUri } from '#dataUri';
-import { buildFaviconTags, type EmbedResolver } from '#html';
+import { buildFaviconTags, type TagContext } from '#faviconTags';
 import { injectTagsIntoHtml } from '#injectHtml';
+import { resolveSpecs } from '#resolveSpecs';
+import type { EmitSpec } from '#types';
 import { DATA_URI_ENCODINGS, INJECT_MODES } from '#types';
 import { arg, CLIError, command, flag } from '@kjanat/dreamcli';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -125,27 +127,18 @@ export const inject = command('inject')
     if (files.length === 0) {
       throw new CLIError('At least one HTML file path is required', { code: 'MISSING_FILES' });
     }
-    const sizes = flags.sizes;
-    const mode = flags.mode;
     const sourceName = flags.source;
-    const baseTagOpts = {
-      output: flags.output,
-      sizes,
-      sourceEmitted: !!sourceName,
-      sourceName: sourceName ?? '',
-      inputFormat: flags['input-format'],
-      mode,
-      base: flags.base,
-    };
-    // Non-embed tags are identical for every file, so build them once.
-    const urlTags = flags.embed ? null : buildFaviconTags(baseTagOpts);
+    // Build the same spec model the plugin uses, then resolve to injections.
+    const specs: EmitSpec[] = [{ format: 'ico', sizes: flags.sizes, filename: flags.output, inject: true }];
+    if (sourceName) specs.push({ format: 'svg', filename: sourceName, inject: true });
+    const { injections } = resolveSpecs(specs, { inputFormat: flags['input-format'] });
 
     /**
      * Read the favicon files an embed run needs (ICO, plus the SVG source if
-     * set) from `assetDir`, returning an {@link EmbedResolver} that inlines
-     * them. Throws a clear error if a referenced file is missing.
+     * set) from `assetDir`, returning a {@link TagContext} embed resolver that
+     * inlines them by filename. Throws a clear error if a referenced file is missing.
      */
-    async function embedResolverFor(assetDir: string): Promise<EmbedResolver> {
+    async function embedResolverFor(assetDir: string): Promise<NonNullable<TagContext['embed']>> {
       const names = sourceName ? [flags.output, sourceName] : [flags.output];
       const bytesByName = new Map<string, Buffer>();
       for (const name of names) {
@@ -158,10 +151,11 @@ export const inject = command('inject')
           });
         }
       }
-      return ({ name, mime }) => {
-        const bytes = bytesByName.get(name);
-        if (!bytes) return null; // not pre-read → leave the URL href untouched
-        return toDataUri(bytes, mime, mime === 'image/svg+xml' ? flags.encoding : 'base64');
+      return (inj) => {
+        if (inj.href.kind !== 'file') return undefined;
+        const bytes = bytesByName.get(inj.href.filename);
+        if (!bytes) return undefined; // not pre-read → leave the URL href untouched
+        return toDataUri(bytes, inj.type, inj.type === 'image/svg+xml' ? flags.encoding : 'base64');
       };
     }
 
@@ -179,9 +173,8 @@ export const inject = command('inject')
         throw e;
       }
       // Embedded hrefs read assets per file (default: the HTML's own directory).
-      const tags =
-        urlTags ??
-        buildFaviconTags({ ...baseTagOpts, embed: await embedResolverFor(flags['asset-dir'] ?? dirname(abs)) });
+      const embed = flags.embed ? await embedResolverFor(flags['asset-dir'] ?? dirname(abs)) : undefined;
+      const tags = await buildFaviconTags(injections, { base: flags.base, embed });
       const next = injectTagsIntoHtml(original, tags);
       if (next !== original) {
         const dir = dirname(abs);

@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 
 import { parseConfig } from '#config';
 import { toDataUri } from '#dataUri';
+import { buildFaviconTags, cacheBust } from '#faviconTags';
 import { INJECT_ICON_LINK_RE } from '#injectHtml';
 import { packIco } from '#ico';
 import { DEBUG, Instrumentation } from '#instrumentation';
@@ -122,13 +123,6 @@ function svgToIco(opts: PluginOptions): Plugin[] {
   /** Matches `<link>` tags whose `rel` contains `icon` (covers `icon`, `shortcut icon`, `apple-touch-icon`). */
   const ICON_LINK_RE = /(<link\b[^>]*\brel\s*=\s*["'][^"']*icon[^"']*["'][^>]*\bhref\s*=\s*["'])([^"']+)(["'][^>]*>)/gi;
 
-  /** Apply cache-bust param to a href string. `data:` URIs are returned untouched — a query param would corrupt inline bytes. */
-  function cacheBust(href: string): string {
-    if (href.startsWith('data:')) return href;
-    const sep = href.includes('?') ? '&' : '?';
-    return `${href}${sep}v=${cacheId}`;
-  }
-
   /** Cache of resolved `data:` URIs, keyed by the embed injection that owns them. Cleared on HMR. */
   const embedCache = new Map<ResolvedInjection, string>();
 
@@ -143,36 +137,13 @@ function svgToIco(opts: PluginOptions): Plugin[] {
     return uri;
   }
 
-  /** Prepend `base` to a filename (handles missing/trailing slashes). */
-  function withBase(base: string, filename: string): string {
-    const b = base.endsWith('/') ? base : `${base}/`;
-    return `${b}${filename.replace(/^\/+/, '')}`;
-  }
-
-  /**
-   * Build favicon `<link>` tag descriptors from resolved injections.
-   *
-   * Async because `embed` injections inline the image bytes as a `data:` URI,
-   * which means producing those bytes (sharp / file read). File injections
-   * resolve synchronously to a `base`-prefixed, optionally cache-busted href.
-   */
-  async function faviconTags(options?: { base?: string; applyCacheBust?: boolean }): Promise<HtmlTagDescriptor[]> {
-    const base = options?.base ?? '/';
-    const bust = options?.applyCacheBust ?? false;
-    const tags: HtmlTagDescriptor[] = [];
-    for (const inj of resolution.injections) {
-      // Embedded bytes carry no base/cache-bust — the href *is* the content.
-      const href =
-        inj.href.kind === 'embed'
-          ? await embedHref(inj)
-          : bust
-            ? cacheBust(withBase(base, inj.href.filename))
-            : withBase(base, inj.href.filename);
-      const attrs: Record<string, string> = { rel: inj.rel, type: inj.type, href };
-      if (inj.sizes) attrs['sizes'] = inj.sizes;
-      tags.push({ tag: inj.tag, attrs, injectTo: 'head' as const });
-    }
-    return tags;
+  /** Build favicon `<link>` descriptors via the shared builder; embed-kind injections produce their bytes. */
+  function faviconTags(options?: { base?: string; applyCacheBust?: boolean }): Promise<HtmlTagDescriptor[]> {
+    return buildFaviconTags(resolution.injections, {
+      base: options?.base,
+      cacheId: options?.applyCacheBust ? cacheId : undefined,
+      embed: (inj) => (inj.href.kind === 'embed' ? embedHref(inj) : undefined),
+    });
   }
 
   /**
@@ -336,7 +307,7 @@ if (import.meta.hot) {
                   for (const tag of await faviconTags({ applyCacheBust: true })) tags.push(tag);
                 } else {
                   processed = processed.replace(ICON_LINK_RE, (_match, before, href, after) => {
-                    return `${before}${cacheBust(href)}${after}`;
+                    return `${before}${cacheBust(href, cacheId)}${after}`;
                   });
                 }
 

@@ -32,7 +32,7 @@
 		"#vite-svg-to-ico": "./src/index.ts",
 		"#internals/*": "./src/*",
 		"#types": "./src/types.ts",
-		"#html": "./src/html.ts",
+		"#faviconTags": "./src/favicon-tags.ts",
 		"#injectHtml": "./src/inject-html.ts",
 		"#ico": "./src/ico.ts",
 		"#raster": "./src/raster.ts",
