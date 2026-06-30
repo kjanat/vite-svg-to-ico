@@ -3,5 +3,6 @@
 	"private": true,
 	"type": "module",
 	"scripts": { "build": "vite build" },
+	"dependencies": { "vite-svg-to-ico": "file:vite-svg-to-ico.tgz" },
 	"devDependencies": { "vite": "^8" }
 }

@@ -2,9 +2,6 @@
 	"name": "vite-svg-to-ico",
 	"version": "4.0.0",
 	"description": "Vite plugin that converts SVG to ICO during site build.",
-	"workspaces": [
-		"tests/smoke/fixture"
-	],
 	"keywords": [
 		"vite-plugin",
 		"vite",
@@ -61,6 +58,7 @@
 		"prepack": "bun --bun bd -l error",
 		"prepublishOnly": "run -s test typecheck",
 		"tar": "bun pm pack --quiet | awk 'NF{line=$0} END{print line}'",
+		"pretest": "bun pm pack --gzip-level 0 --filename tests/smoke/fixture/vite-svg-to-ico.tgz && bun --cwd=tests/smoke/fixture install",
 		"test": "bun test",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome lint"
