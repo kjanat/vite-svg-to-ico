@@ -20,11 +20,12 @@ import { dirname, resolve } from 'node:path';
  */
 export const inject = command('inject')
   .description(
-    `Rewrite existing HTML files on disk: strip ${blue('<link rel="') + red('icon') + blue('">')} and ${
+    `Rewrite existing HTML files on disk:
+strip ${blue('<link rel="') + red('icon') + blue('">')} and ${
       blue('<link rel="') + red('shortcut icon') + blue('">')
-    } tags (preserves ${red('apple-touch-icon')}), splice in the configured favicon tag set before ${blue(
-      '</head>',
-    )}, and write back. The ICO/SVG files themselves are expected to already exist at the configured paths.`,
+    } tags (preserves ${red('apple-touch-icon')}),
+splice in the configured favicon tag set before ${blue('</head>')}, and write back.
+The ICO/SVG files themselves are expected to already exist at the configured paths.`,
   )
   .arg(
     'files',

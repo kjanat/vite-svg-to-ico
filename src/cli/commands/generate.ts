@@ -19,7 +19,10 @@ import { dirname, resolve } from 'node:path';
  */
 export const generate = command('generate')
   .description(
-    `Rasterize a source image into a multi-size ICO favicon. Optionally also emit per-size PNG/ICO files and a copy of the original source. Equivalent to what the Vite plugin emits during ${blue('vite build')}, but runs standalone.`,
+    `\
+Rasterize a source image into a multi-size ICO favicon.
+Optionally also emit per-size PNG/ICO files and a copy of the original source.
+Equivalent to what the Vite plugin emits during ${blue('vite build')}, but runs standalone.`,
   )
   .arg(
     'input',
