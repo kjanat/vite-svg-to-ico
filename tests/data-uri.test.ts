@@ -47,16 +47,19 @@ describe('toDataUri — utf8 (SVG)', () => {
     expect(uri.slice('data:image/svg+xml,'.length)).not.toContain('&');
   });
 
-  it('swaps double quotes for single quotes so the attr needs no escaping', () => {
+  it('percent-encodes double quotes instead of swapping them, keeping bytes intact', () => {
     const uri = toDataUri(Buffer.from(SVG), 'image/svg+xml', 'utf8');
-    expect(uri).toContain("xmlns='http://www.w3.org/2000/svg'");
+    // `"` → `%22`, never `'` (a swap would mutate CDATA/CSS/script content).
+    expect(uri).toContain('xmlns=%22http://www.w3.org/2000/svg%22');
+    expect(uri).not.toContain("'");
   });
 
-  it('collapses whitespace runs to shrink the payload', () => {
-    const spaced = '<svg>\n  <rect   width="1"/>\n</svg>';
-    const uri = toDataUri(Buffer.from(spaced), 'image/svg+xml', 'utf8');
-    expect(uri).toContain('%3Crect width=');
-    expect(uri).not.toContain('   ');
+  it('preserves the SVG byte-for-byte, including CDATA and significant whitespace', () => {
+    const svg =
+      '<svg><style><![CDATA[ .a::after { content: "  x  " } ]]></style><text xml:space="preserve">a    b</text></svg>';
+    const uri = toDataUri(Buffer.from(svg), 'image/svg+xml', 'utf8');
+    const decoded = decodeURIComponent(uri.slice('data:image/svg+xml,'.length));
+    expect(decoded).toBe(svg);
   });
 
   it('utf8 is smaller than base64 for typical SVG', () => {

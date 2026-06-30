@@ -257,9 +257,10 @@ describe('CLI: inject', () => {
     expect(result.exitCode).toBe(0);
 
     const updated = await readFile(file, 'utf8');
-    // SVG inlined as utf8 (single-quoted markup), not a file reference.
+    // SVG inlined as utf8, not a file reference. Bytes preserved verbatim —
+    // double quotes percent-encode to %22 rather than swapping to single quotes.
     expect(updated).toContain('href="data:image/svg+xml,');
-    expect(updated).toContain("xmlns='http://www.w3.org/2000/svg'");
+    expect(updated).toContain('xmlns=%22http://www.w3.org/2000/svg%22');
     expect(updated).not.toContain('href="/favicon.svg"');
     // ICO is always base64.
     expect(updated).toContain('href="data:image/x-icon;base64,');

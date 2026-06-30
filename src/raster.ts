@@ -64,10 +64,10 @@ export async function generateSizedPngs(input: Buffer | string, opts: GenerateOp
  */
 export async function generateIco(input: Buffer | string, opts: GenerateOptions): Promise<Buffer> {
   // ICO directory entries store width/height in a single byte where 0 means
-  // exactly 256px, so anything above 256 cannot be represented honestly.
-  const tooBig = opts.sizes.filter((s) => s > 256);
-  if (tooBig.length > 0) {
-    throw new RangeError(`ICO layers must be 1–256px; got ${tooBig.join(', ')}.`);
+  // exactly 256px, so only 1–256 can be represented honestly.
+  const invalid = opts.sizes.filter((s) => s < 1 || s > 256);
+  if (invalid.length > 0) {
+    throw new RangeError(`ICO layers must be 1–256px; got ${invalid.join(', ')}.`);
   }
   const pngs = await generateSizedPngs(input, opts);
   return packIco(pngs);

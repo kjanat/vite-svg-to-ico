@@ -16,34 +16,34 @@
 import type { DataUriEncoding } from '#types';
 
 /**
- * Minimally percent-escape a UTF-8 SVG string for use inside a `data:` URI that
- * will itself sit in an HTML double-quoted attribute.
+ * Percent-escape a UTF-8 SVG string for use inside a `data:` URI that will
+ * itself sit in an HTML double-quoted attribute.
  *
- * Rather than `encodeURIComponent` (which escapes far more than necessary and
- * bloats the payload), this escapes only the characters that would actually
- * break the URI or the surrounding attribute, and swaps `"` → `'` so the markup
- * needs no attribute-level quote escaping. This mirrors the well-trodden
- * "tiny SVG data URI" approach.
+ * Every escape is a percent-encoding, so the original bytes are recovered
+ * verbatim when the browser decodes the URI: the embedded favicon is identical
+ * to the source down to whitespace and quotes. CDATA, `xml:space="preserve"`
+ * text, and `<style>`/`<script>` content all survive unchanged.
+ *
+ * Only the characters that would break the URI or the surrounding attribute are
+ * touched — far fewer than `encodeURIComponent` would encode, so the payload
+ * stays compact and human-readable:
+ *
+ * - `%` first, so the encodings added below are not themselves re-encoded.
+ * - `"` → `%22` closes the HTML attribute otherwise (we do NOT swap it to `'`,
+ *   which would change the bytes inside CDATA/CSS/script).
+ * - `&` → `%26` is unsafe in an HTML attribute under renderers that don't escape
+ *   `&` themselves (the CLI's `renderTag` only escapes `"`).
+ * - `#` → `%23` would otherwise start a URL fragment.
+ * - `<` / `>` → `%3C` / `%3E` close out of the attribute / are invalid in a URI.
  */
 function escapeSvgUtf8(svg: string): string {
-  return (
-    svg
-      // Collapse inter-tag and run whitespace — safe for SVG, shrinks the URI.
-      .replace(/>\s+</g, '><')
-      .replace(/\s+/g, ' ')
-      .trim()
-      // Single quotes in markup so the URI carries no `"` to escape in the attr.
-      .replace(/"/g, "'")
-      // Percent-encode the genuinely-unsafe characters. `%` first so the
-      // substitutions below aren't themselves re-encoded. `&` is escaped so the
-      // URI is safe inside an HTML attribute under renderers that don't escape
-      // `&` themselves (the CLI's `renderTag` only escapes `"`).
-      .replace(/%/g, '%25')
-      .replace(/&/g, '%26')
-      .replace(/#/g, '%23')
-      .replace(/</g, '%3C')
-      .replace(/>/g, '%3E')
-  );
+  return svg
+    .replace(/%/g, '%25')
+    .replace(/"/g, '%22')
+    .replace(/&/g, '%26')
+    .replace(/#/g, '%23')
+    .replace(/</g, '%3C')
+    .replace(/>/g, '%3E');
 }
 
 /**

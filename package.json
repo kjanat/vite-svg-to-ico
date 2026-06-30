@@ -58,7 +58,7 @@
 		"prepack": "bun --bun bd -l error",
 		"prepublishOnly": "run -s test typecheck",
 		"tar": "bun pm pack --quiet | awk 'NF{line=$0} END{print line}'",
-		"pretest": "bun pm pack --gzip-level 0 --filename tests/smoke/fixture/vite-svg-to-ico.tgz && bun --cwd=tests/smoke/fixture install",
+		"pretest": "bun pm pack --gzip-level 0 --filename tests/smoke/fixture/vite-svg-to-ico.tgz && bun --cwd=tests/smoke/fixture install --no-frozen-lockfile",
 		"test": "bun test",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome lint"

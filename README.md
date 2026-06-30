@@ -100,6 +100,31 @@ When any spec has `inject: true`, the plugin strips existing
 from the HTML before injecting the new set,
 to prevent duplicates. `apple-touch-icon` tags are preserved.
 
+### Embedding as `data:` URIs
+
+`inject: 'embed'` inlines the favicon bytes directly into the `<link>` href as a
+`data:` URI — the HTML carries the image itself, no file reference. Pair it with
+`emit: false` to embed without writing a file at all.
+
+```ts
+svgToIco({
+  input: 'src/icon.svg',
+  emit: [
+    // ICO inlined as base64 AND written to disk (default emit: true).
+    { format: 'ico', sizes: [16, 32], inject: 'embed' },
+    // SVG inlined as a utf8 data: URI, no file on disk.
+    { format: 'svg', emit: false, inject: 'embed', encoding: 'utf8' },
+  ],
+});
+```
+
+Encoding (`SvgSpec` only): `base64` (default) is opaque and uniform; `utf8`
+(`data:image/svg+xml,…`) keeps the markup readable and is usually smaller. The
+SVG bytes are preserved verbatim — quotes and significant whitespace (including
+CDATA and `xml:space="preserve"`) survive the round-trip unchanged. Binary ICO
+and PNG are always base64. Embedded hrefs are never cache-busted, since the href
+_is_ the content.
+
 ### Non-SVG input
 
 PNG, JPEG, WebP, AVIF, GIF, and TIFF sources are supported — the plugin detects
@@ -233,29 +258,33 @@ Array of per-format specs. Each entry is one of:
 
 #### `IcoSpec`
 
-| Field      | Type        | Default           | Description                                     |
-| ---------- | ----------- | ----------------- | ----------------------------------------------- |
-| `format`   | `'ico'`     | —                 | Discriminator.                                  |
-| `sizes`    | `number[]?` | Top-level `sizes` | Sizes to pack into this ICO (1–256).            |
-| `filename` | `string?`   | `'favicon.ico'`   | Output filename (relative to build output).     |
-| `inject`   | `boolean?`  | `false`           | Inject `<link rel="icon" type="image/x-icon">`. |
+| Field      | Type                 | Default           | Description                                                              |
+| ---------- | -------------------- | ----------------- | ------------------------------------------------------------------------ |
+| `format`   | `'ico'`              | —                 | Discriminator.                                                           |
+| `sizes`    | `number[]?`          | Top-level `sizes` | Sizes to pack into this ICO (1–256).                                     |
+| `filename` | `string?`            | `'favicon.ico'`   | Output filename (relative to build output).                              |
+| `emit`     | `boolean?`           | `true`            | Write the ICO file. Set `false` to embed without writing (see `inject`). |
+| `inject`   | `boolean \| 'embed'` | `false`           | `true` links the file; `'embed'` inlines the bytes as a `data:` URI.     |
 
 #### `PngSpec`
 
-| Field              | Type                               | Default                       | Description                                                           |
-| ------------------ | ---------------------------------- | ----------------------------- | --------------------------------------------------------------------- |
-| `format`           | `'png'`                            | —                             | Discriminator.                                                        |
-| `sizes`            | `number[]`                         | **(required)**                | Sizes to emit as separate PNG files (1–256).                          |
-| `filenameTemplate` | `string?`                          | `'favicon-{size}x{size}.png'` | Template using `{size}` placeholder.                                  |
-| `inject`           | `boolean \| { sizes?: number[] }?` | `false`                       | `true` injects all sizes; `{ sizes }` injects only the listed subset. |
+| Field              | Type                                       | Default                       | Description                                                                        |
+| ------------------ | ------------------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------- |
+| `format`           | `'png'`                                    | —                             | Discriminator.                                                                     |
+| `sizes`            | `number[]`                                 | **(required)**                | Sizes to emit as separate PNG files (1–4096 — not bound by ICO's 256 cap).         |
+| `filenameTemplate` | `string?`                                  | `'favicon-{size}x{size}.png'` | Template using `{size}` placeholder.                                               |
+| `emit`             | `boolean?`                                 | `true`                        | Write the PNG files. Set `false` to embed without writing.                         |
+| `inject`           | `boolean \| 'embed' \| { sizes?, embed? }` | `false`                       | `true` links all sizes; `'embed'` inlines all; `{ sizes }` / `{ embed }` scope it. |
 
 #### `SvgSpec`
 
-| Field      | Type       | Default           | Description                                                  |
-| ---------- | ---------- | ----------------- | ------------------------------------------------------------ |
-| `format`   | `'svg'`    | —                 | Discriminator.                                               |
-| `filename` | `string?`  | `basename(input)` | Output filename (only meaningful when input is an SVG).      |
-| `inject`   | `boolean?` | `false`           | Inject `<link rel="icon" type="image/svg+xml" sizes="any">`. |
+| Field      | Type                 | Default           | Description                                                                         |
+| ---------- | -------------------- | ----------------- | ----------------------------------------------------------------------------------- |
+| `format`   | `'svg'`              | —                 | Discriminator.                                                                      |
+| `filename` | `string?`            | `basename(input)` | Output filename (only meaningful when input is an SVG).                             |
+| `emit`     | `boolean?`           | `true`            | Write the SVG copy. Set `false` to embed without writing.                           |
+| `inject`   | `boolean \| 'embed'` | `false`           | `true` links the file; `'embed'` inlines the SVG as a `data:` URI.                  |
+| `encoding` | `'base64' \| 'utf8'` | `'base64'`        | Embed encoding (only with `inject: 'embed'`). `utf8` is readable + usually smaller. |
 
 ### `emit` (v2 — deprecated, removed in v4)
 
