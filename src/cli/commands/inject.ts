@@ -6,7 +6,7 @@ import { buildFaviconTags, type TagContext } from '#faviconTags';
 import { injectTagsIntoHtml } from '#injectHtml';
 import { resolveSpecs } from '#resolveSpecs';
 import type { EmitSpec } from '#types';
-import { DATA_URI_ENCODINGS, INJECT_MODES } from '#types';
+import { DATA_URI_ENCODINGS } from '#types';
 import { arg, CLIError, command, flag } from '@kjanat/dreamcli';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -46,16 +46,6 @@ export const inject = command('inject')
       ),
   )
   .flag('sizes', sizesFlag())
-  .flag(
-    'mode',
-    flag
-      .enum(INJECT_MODES)
-      .alias('m')
-      .default('minimal')
-      .describe(
-        `Tag set to inject. ${red('minimal')}: ICO + optional SVG source link. ${red('full')}: also per-size PNG/ICO links.`,
-      ),
-  )
   .flag(
     'base',
     flag
@@ -114,8 +104,8 @@ export const inject = command('inject')
     `Multi-file rewrite, also injects SVG source ${blue('<link>')}.`,
   )
   .example(
-    green('inject dist/index.html --base /repo/ -m full'),
-    'Full tag set under a subpath base (e.g. GitHub Pages project site).',
+    green('inject dist/index.html --base /repo/'),
+    'Inject under a subpath base (e.g. GitHub Pages project site).',
   )
   .example(
     green('inject dist/index.html --source favicon.svg --embed --encoding utf8'),

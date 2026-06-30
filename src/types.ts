@@ -193,11 +193,6 @@ export interface DevOptions {
   hmr?: boolean;
 }
 
-/** Valid string values for {@link PluginOptions.inject}. */
-export const INJECT_MODES = ['minimal', 'full'] as const;
-/** Mode for HTML `<link>` tag injection. */
-export type InjectMode = (typeof INJECT_MODES)[number];
-
 /** Valid encodings for an embedded (`inject: 'embed'`) favicon `data:` URI. */
 export const DATA_URI_ENCODINGS = ['base64', 'utf8'] as const;
 /** How embedded favicon bytes are encoded into a `data:` URI. See {@link SvgSpec.encoding}. */

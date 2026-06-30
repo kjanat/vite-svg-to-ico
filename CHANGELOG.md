@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accepts only an `EmitSpec[]` array. Removed the exported types
   `LegacyEmitOptions`, `EmitOptions`, `isLegacyEmit`, `NormalizedEmit`,
   `IncludeSourceOptions`, `EmitSizesFormat`, and `EMIT_SIZES_FORMATS`.
-  Migration:
+- Removed the inert `--mode`/`-m` flag from the `svg-to-ico inject` CLI and the
+  now-unused `InjectMode` / `INJECT_MODES` exports — the flag never affected
+  output (the CLI emits ICO + optional SVG links regardless).
 
   | v2 (removed)                                | v3/v4                                                                      |
   | ------------------------------------------- | -------------------------------------------------------------------------- |

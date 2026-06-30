@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { INJECT_MODES, SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from '../src/types.ts';
+import { SUPPORTED_EXTENSIONS, SVG_EXTENSIONS } from '../src/types.ts';
 
 describe('SUPPORTED_EXTENSIONS', () => {
   it('contains all expected image formats', () => {
@@ -23,11 +23,5 @@ describe('SVG_EXTENSIONS', () => {
 
   it('does not contain non-SVG', () => {
     expect(SVG_EXTENSIONS.has('.png')).toBe(false);
-  });
-});
-
-describe('INJECT_MODES', () => {
-  it('contains minimal, full', () => {
-    expect(INJECT_MODES).toEqual(['minimal', 'full']);
   });
 });
