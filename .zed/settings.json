@@ -5,8 +5,20 @@
 	"formatter": [{ "external": { "command": "dprint", "arguments": ["fmt", "--stdin", "{buffer_path}"] } }],
 	"prettier": { "allowed": false },
 	"languages": {
-		"TypeScript": { "language_servers": ["tsgo", "vtsls", "eslint", "biome", "!tailwindcss-intellisense-css"] },
-		"JavaScript": { "language_servers": ["tsgo", "vtsls", "eslint", "biome"] },
+		"TypeScript": {
+			"language_servers": ["tsgo", "vtsls", "eslint", "biome", "!tailwindcss-intellisense-css"],
+			"code_actions_on_format": {
+				"source.fixAll.biome": true,
+				"source.organizeImports.biome": true
+			}
+		},
+		"JavaScript": {
+			"language_servers": ["tsgo", "vtsls", "eslint", "biome"],
+			"code_actions_on_format": {
+				"source.fixAll.biome": true,
+				"source.organizeImports.biome": true
+			}
+		},
 		"CSS": { "language_servers": ["tailwindcss-intellisense-css", "..."] }
 	}
 }

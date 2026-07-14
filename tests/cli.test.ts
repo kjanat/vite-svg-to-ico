@@ -1,20 +1,18 @@
-import { $ } from 'bun';
 import { describe, expect, it } from 'bun:test';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { cwd } from 'node:process';
-import { pathToFileURL } from 'node:url';
-
+import { createOutput } from 'dreamcli';
+import { runCommand } from 'dreamcli/testkit';
 import { inject } from '#cli/commands/inject';
 import { generate } from '#internals/cli/commands/generate.ts';
-import { runCommand } from '@kjanat/dreamcli/testkit';
 
 const FIXTURE = resolve(import.meta.dirname, 'fixtures/test.svg');
-const CLI_ENTRY = resolve(import.meta.dirname, '../src/cli.ts');
+const CLI_ENTRY = Bun.fileURLToPath(import.meta.resolve('#cli'));
 
 async function setupTmp(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'vite-svg-to-ico-cli-'));
+	return mkdtemp(join(tmpdir(), 'vite-svg-to-ico-cli-'));
 }
 
 /**
@@ -22,271 +20,293 @@ async function setupTmp(): Promise<string> {
  * fully satisfy the global `fetch` shape; without it TS rejects assignment.
  */
 function makeFetchStub(
-  impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+	impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
 ): typeof globalThis.fetch {
-  return Object.assign(impl, { preconnect: () => {} });
+	return Object.assign(impl, { preconnect: () => {} });
 }
 
 async function withStubbedFetch<T>(stub: typeof globalThis.fetch, fn: () => Promise<T>): Promise<T> {
-  const original = globalThis.fetch;
-  globalThis.fetch = stub;
-  try {
-    return await fn();
-  } finally {
-    globalThis.fetch = original;
-  }
+	const original = globalThis.fetch;
+	globalThis.fetch = stub;
+	try {
+		return await fn();
+	} finally {
+		globalThis.fetch = original;
+	}
 }
 
-describe('CLI: generate', () => {
-  it('documents the default out dir as the current directory, not a captured absolute path', async () => {
-    const result = await runCommand(generate, ['--help']);
-    expect(result.exitCode).toBe(0);
+describe('CLI', () => {
+	describe('generate', () => {
+		it('documents the default out dir as the current directory, not a captured absolute path', async () => {
+			const result = await runCommand(generate, ['--help']);
+			expect(result.exitCode).toBe(0);
 
-    const help = result.stdout.join('\n');
-    const flatHelp = help.replace(/\s+/g, ' ');
-    expect(flatHelp).toContain('Defaults to the current working directory. (default: .)');
-    expect(help).toContain('(default: .)');
-    expect(help).not.toContain(cwd());
-  });
+			const help = result.stdout.join('\n');
+			const flatHelp = help.replace(/\s+/g, ' ');
+			expect(flatHelp).toContain('Defaults to the current working directory. (default: .)');
+			expect(help).toContain('(default: .)');
+			expect(help).not.toContain(cwd());
+		});
 
-  it('writes to the invocation cwd by default', async () => {
-    const dir = await setupTmp();
-    const result = await $`bun ${CLI_ENTRY} generate ${FIXTURE} --sizes 16`.cwd(dir).quiet().nothrow();
-    expect(result.exitCode).toBe(0);
+		it('writes to the invocation cwd by default', async () => {
+			const dir = await setupTmp();
+			const result = await Bun.$`bun ${CLI_ENTRY} generate ${FIXTURE} --sizes 16`.cwd(dir).quiet().nothrow();
+			expect(result.exitCode).toBe(0);
 
-    const ico = await readFile(join(dir, 'favicon.ico'));
-    expect(ico.byteLength).toBeGreaterThan(0);
-    expect(await Bun.file(join(dir, 'public/favicon.ico')).exists()).toBe(false);
-  });
+			const ico = await Bun.file(join(dir, 'favicon.ico')).bytes();
+			expect(ico.byteLength).toBeGreaterThan(0);
+			expect(await Bun.file(join(dir, 'public/favicon.ico')).exists()).toBe(false);
+		});
 
-  it('writes a multi-size favicon.ico to the out dir', async () => {
-    const dir = await setupTmp();
-    const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32']);
-    expect(result.exitCode).toBe(0);
+		it('writes a multi-size favicon.ico to the out dir', async () => {
+			const dir = await setupTmp();
+			const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32']);
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout.join('')).not.toContain('\x1b');
 
-    const stats = await readFile(join(dir, 'favicon.ico'));
-    expect(stats.byteLength).toBeGreaterThan(0);
-    // ICO magic header: reserved (00 00) + type (01 00) + count (02 00 for 2 sizes)
-    expect(stats[0]).toBe(0);
-    expect(stats[2]).toBe(1);
-    expect(stats[4]).toBe(2);
-  });
+			const stats = await Bun.file(join(dir, 'favicon.ico')).bytes();
+			expect(stats.byteLength).toBeGreaterThan(0);
+			// ICO magic header: reserved (00 00) + type (01 00) + count (02 00 for 2 sizes)
+			expect(stats[0]).toBe(0);
+			expect(stats[2]).toBe(1);
+			expect(stats[4]).toBe(2);
+		});
 
-  it('emits source file when --emit-source is set', async () => {
-    const dir = await setupTmp();
-    const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--emit-source']);
-    expect(result.exitCode).toBe(0);
+		it('uses DreamCLI colors and ansispeck hyperlinks when styling is enabled', async () => {
+			const dir = await setupTmp();
+			const stdout: string[] = [];
+			const out = createOutput({
+				color: true,
+				isTTY: true,
+				stdout: (value) => stdout.push(value),
+			});
 
-    const source = await readFile(join(dir, 'test.svg'), 'utf8');
-    expect(source).toContain('<svg');
-  });
+			const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16'], { out });
+			expect(result.exitCode).toBe(0);
 
-  it('emits per-size PNGs when --emit-sizes png is set', async () => {
-    const dir = await setupTmp();
-    const result = await runCommand(
-      generate,
-      /* dprint-ignore */ [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32', '--emit-sizes', 'png'],
-    );
-    expect(result.exitCode).toBe(0);
+			const rendered = stdout.join('');
+			expect(rendered).toContain('\x1b[32mWrote\x1b[39m');
+			expect(rendered).toContain('\x1b]8;;file://');
+			expect(rendered).toContain(`\x1b[36m${join(dir, 'favicon.ico')}\x1b[39m`);
+		});
 
-    const png16 = await readFile(join(dir, 'favicon-16x16.png'));
-    const png32 = await readFile(join(dir, 'favicon-32x32.png'));
-    // PNG magic: 89 50 4E 47
-    expect(png16[0]).toBe(0x89);
-    expect(png16[1]).toBe(0x50);
-    expect(png32[0]).toBe(0x89);
-  });
+		it('emits source file when --emit-source is set', async () => {
+			const dir = await setupTmp();
+			const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--emit-source']);
+			expect(result.exitCode).toBe(0);
 
-  it('rejects invalid sizes', async () => {
-    const dir = await setupTmp();
-    const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '0', '--sizes', '500']);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr.join('')).toContain('Invalid size');
-  });
+			const source = await Bun.file(join(dir, 'test.svg')).text();
+			expect(source).toContain('<svg');
+		});
 
-  it('fetches a URL source and writes ICO + source copy', async () => {
-    const dir = await setupTmp();
-    const svgBytes = await readFile(FIXTURE);
-    const url = 'https://example.test/path/remote.svg?v=1';
-    const seen: string[] = [];
+		it('emits per-size PNGs when --emit-sizes png is set', async () => {
+			const dir = await setupTmp();
+			const result = await runCommand(
+				generate,
+				/* dprint-ignore */ [FIXTURE, '--out-dir', dir, '--sizes', '16', '--sizes', '32', '--emit-sizes', 'png'],
+			);
+			expect(result.exitCode).toBe(0);
 
-    const stub = makeFetchStub(async (input) => {
-      seen.push(String(input));
-      return new Response(svgBytes, { status: 200, headers: { 'content-type': 'image/svg+xml' } });
-    });
+			const png16 = await Bun.file(join(dir, 'favicon-16x16.png')).bytes();
+			const png32 = await Bun.file(join(dir, 'favicon-32x32.png')).bytes();
+			// PNG magic: 89 50 4E 47
+			expect(png16[0]).toBe(0x89);
+			expect(png16[1]).toBe(0x50);
+			expect(png32[0]).toBe(0x89);
+		});
 
-    const result = await withStubbedFetch(stub, () =>
-      runCommand(generate, [url, '--out-dir', dir, '--sizes', '16', '--emit-source']),
-    );
-    expect(result.exitCode).toBe(0);
-    expect(seen).toEqual([url]);
+		it('rejects invalid sizes', async () => {
+			const dir = await setupTmp();
+			const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '0', '--sizes', '500']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.stderr.join('')).toContain("Invalid number value '0' for flag --sizes: must be >= 1");
+		});
 
-    const ico = await readFile(join(dir, 'favicon.ico'));
-    expect(ico.byteLength).toBeGreaterThan(0);
+		it('fetches a URL source and writes ICO + source copy', async () => {
+			const dir = await setupTmp();
+			const svgBytes = await Bun.file(FIXTURE).bytes();
+			const url = 'https://example.test/path/remote.svg?v=1';
+			const seen: string[] = [];
 
-    // --emit-source should use the URL pathname basename, *not* including the query string.
-    const sourceCopy = await readFile(join(dir, 'remote.svg'), 'utf8');
-    expect(sourceCopy).toContain('<svg');
-  });
+			const stub = makeFetchStub(async (input) => {
+				seen.push(String(input));
+				return new Response(svgBytes, { status: 200, headers: { 'content-type': 'image/svg+xml' } });
+			});
 
-  it('accepts a file:// URL string as input', async () => {
-    const dir = await setupTmp();
-    const fileUrl = pathToFileURL(FIXTURE).toString();
+			const result = await withStubbedFetch(
+				stub,
+				() => runCommand(generate, [url, '--out-dir', dir, '--sizes', '16', '--emit-source']),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(seen).toEqual([url]);
 
-    const result = await runCommand(generate, [fileUrl, '--out-dir', dir, '--sizes', '16']);
-    expect(result.exitCode).toBe(0);
+			const ico = await Bun.file(join(dir, 'favicon.ico')).bytes();
+			expect(ico.byteLength).toBeGreaterThan(0);
 
-    const ico = await readFile(join(dir, 'favicon.ico'));
-    expect(ico.byteLength).toBeGreaterThan(0);
-  });
+			// --emit-source should use the URL pathname basename, *not* including the query string.
+			const sourceCopy = await Bun.file(join(dir, 'remote.svg')).text();
+			expect(sourceCopy).toContain('<svg');
+		});
 
-  it('reports a clear error when URL fetch fails', async () => {
-    const dir = await setupTmp();
-    const url = 'https://example.test/missing.svg';
+		it('accepts a file:// URL string as input', async () => {
+			const dir = await setupTmp();
+			const fileUrl = Bun.pathToFileURL(FIXTURE).toString();
 
-    const stub = makeFetchStub(async () => new Response('not found', { status: 404, statusText: 'Not Found' }));
+			const result = await runCommand(generate, [fileUrl, '--out-dir', dir, '--sizes', '16']);
+			expect(result.exitCode).toBe(0);
 
-    const result = await withStubbedFetch(stub, () => runCommand(generate, [url, '--out-dir', dir]));
-    expect(result.exitCode).not.toBe(0);
-    expect([...result.stderr, ...result.stdout].join('\n')).toContain('404');
-  });
-});
+			const ico = await Bun.file(join(dir, 'favicon.ico')).bytes();
+			expect(ico.byteLength).toBeGreaterThan(0);
+		});
 
-describe('CLI: inject', () => {
-  const HTML = '<html><head><title>x</title><link rel="icon" href="/old.ico"></head><body></body></html>';
+		it('reports a clear error when URL fetch fails', async () => {
+			const dir = await setupTmp();
+			const url = 'https://example.test/missing.svg';
 
-  it('rewrites a single HTML file with minimal mode', async () => {
-    const dir = await setupTmp();
-    const file = join(dir, 'index.html');
-    await writeFile(file, HTML);
+			const stub = makeFetchStub(async () => new Response('not found', { status: 404, statusText: 'Not Found' }));
 
-    const result = await runCommand(inject, [file, '--sizes', '16', '--sizes', '32']);
-    expect(result.exitCode).toBe(0);
+			const result = await withStubbedFetch(stub, () => runCommand(generate, [url, '--out-dir', dir]));
+			expect(result.exitCode).not.toBe(0);
+			expect([...result.stderr, ...result.stdout].join('\n')).toContain('404');
+		});
+	});
 
-    const updated = await readFile(file, 'utf8');
-    expect(updated).toContain('rel="icon"');
-    expect(updated).toContain('href="/favicon.ico"');
-    expect(updated).toContain('sizes="16x16 32x32"');
-    expect(updated).not.toContain('/old.ico');
-  });
+	describe('inject', () => {
+		const HTML = '<html><head><title>x</title><link rel="icon" href="/old.ico"></head><body></body></html>';
 
-  it('preserves apple-touch-icon', async () => {
-    const dir = await setupTmp();
-    const file = join(dir, 'index.html');
-    await writeFile(
-      file,
-      '<html><head><link rel="icon" href="/old.ico"><link rel="apple-touch-icon" href="/apple.png"></head></html>',
-    );
+		it('rewrites a single HTML file with minimal mode', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, HTML);
 
-    await runCommand(inject, [file]);
-    const updated = await readFile(file, 'utf8');
-    expect(updated).toContain('apple-touch-icon');
-    expect(updated).not.toContain('/old.ico');
-  });
+			const result = await runCommand(inject, [file, '--sizes', '16', '--sizes', '32']);
+			expect(result.exitCode).toBe(0);
 
-  it('handles multiple files via variadic arg', async () => {
-    const dir = await setupTmp();
-    const a = join(dir, 'a.html');
-    const b = join(dir, 'b.html');
-    await writeFile(a, '<head></head>');
-    await writeFile(b, '<head></head>');
+			const updated = await Bun.file(file).text();
+			expect(updated).toContain('rel="icon"');
+			expect(updated).toContain('href="/favicon.ico"');
+			expect(updated).toContain('sizes="16x16 32x32"');
+			expect(updated).not.toContain('/old.ico');
+		});
 
-    const result = await runCommand(inject, [a, b]);
-    expect(result.exitCode).toBe(0);
-    expect(await readFile(a, 'utf8')).toContain('/favicon.ico');
-    expect(await readFile(b, 'utf8')).toContain('/favicon.ico');
-  });
+		it('preserves apple-touch-icon', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(
+				file,
+				'<html><head><link rel="icon" href="/old.ico"><link rel="apple-touch-icon" href="/apple.png"></head></html>',
+			);
 
-  it('honors --base', async () => {
-    const dir = await setupTmp();
-    const file = join(dir, 'index.html');
-    await writeFile(file, '<head></head>');
+			await runCommand(inject, [file]);
+			const updated = await Bun.file(file).text();
+			expect(updated).toContain('apple-touch-icon');
+			expect(updated).not.toContain('/old.ico');
+		});
 
-    await runCommand(inject, [file, '--base', '/app/']);
-    const updated = await readFile(file, 'utf8');
-    expect(updated).toContain('href="/app/favicon.ico"');
-  });
+		it('handles multiple files via variadic arg', async () => {
+			const dir = await setupTmp();
+			const a = join(dir, 'a.html');
+			const b = join(dir, 'b.html');
+			await Bun.write(a, '<head></head>');
+			await Bun.write(b, '<head></head>');
 
-  it('emits SVG link when --source is provided', async () => {
-    const dir = await setupTmp();
-    const file = join(dir, 'index.html');
-    await writeFile(file, '<head></head>');
+			const result = await runCommand(inject, [a, b]);
+			expect(result.exitCode).toBe(0);
+			expect(await Bun.file(a).text()).toContain('/favicon.ico');
+			expect(await Bun.file(b).text()).toContain('/favicon.ico');
+		});
 
-    await runCommand(inject, [file, '--source', 'favicon.svg']);
-    const updated = await readFile(file, 'utf8');
-    expect(updated).toContain('type="image/svg+xml"');
-    expect(updated).toContain('href="/favicon.svg"');
-  });
+		it('honors --base', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
 
-  it('reports missing files but does not fail the run', async () => {
-    const dir = await setupTmp();
-    const present = join(dir, 'present.html');
-    await writeFile(present, '<head></head>');
+			await runCommand(inject, [file, '--base', '/app/']);
+			const updated = await Bun.file(file).text();
+			expect(updated).toContain('href="/app/favicon.ico"');
+		});
 
-    const result = await runCommand(inject, [present, join(dir, 'nope.html')]);
-    expect(result.exitCode).toBe(0);
-    const all = [...result.stdout, ...result.stderr].join('\n');
-    expect(all).toContain('file not found');
-    // the present one still got rewritten
-    expect(await readFile(present, 'utf8')).toContain('/favicon.ico');
-  });
+		it('emits SVG link when --source is provided', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
 
-  it('--embed inlines the ICO as a base64 data: URI (no file reference)', async () => {
-    const dir = await setupTmp();
-    const file = join(dir, 'index.html');
-    await writeFile(file, '<head></head>');
-    const icoBytes = Buffer.from([0, 0, 1, 0, 1, 0, 16, 16]); // arbitrary ICO-ish bytes
-    await writeFile(join(dir, 'favicon.ico'), icoBytes);
+			await runCommand(inject, [file, '--source', 'favicon.svg']);
+			const updated = await Bun.file(file).text();
+			expect(updated).toContain('type="image/svg+xml"');
+			expect(updated).toContain('href="/favicon.svg"');
+		});
 
-    const result = await runCommand(inject, [file, '--embed']);
-    expect(result.exitCode).toBe(0);
+		it('reports missing files but does not fail the run', async () => {
+			const dir = await setupTmp();
+			const present = join(dir, 'present.html');
+			await Bun.write(present, '<head></head>');
 
-    const updated = await readFile(file, 'utf8');
-    expect(updated).toContain(`href="data:image/x-icon;base64,${icoBytes.toString('base64')}"`);
-    expect(updated).not.toContain('href="/favicon.ico"');
-  });
+			const result = await runCommand(inject, [present, join(dir, 'nope.html')]);
+			expect(result.exitCode).toBe(0);
+			const all = [...result.stdout, ...result.stderr].join('\n');
+			expect(all).toContain('file not found');
+			// the present one still got rewritten
+			expect(await Bun.file(present).text()).toContain('/favicon.ico');
+		});
 
-  it('--embed --encoding utf8 inlines the SVG source as a readable data: URI', async () => {
-    const dir = await setupTmp();
-    const file = join(dir, 'index.html');
-    await writeFile(file, '<head></head>');
-    await writeFile(join(dir, 'favicon.ico'), Buffer.from([0, 0, 1, 0]));
-    await writeFile(join(dir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
+		it('--embed inlines the ICO as a base64 data: URI (no file reference)', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			const icoBytes = Buffer.from([0, 0, 1, 0, 1, 0, 16, 16]); // arbitrary ICO-ish bytes
+			await Bun.write(join(dir, 'favicon.ico'), icoBytes);
 
-    const result = await runCommand(inject, [file, '--source', 'favicon.svg', '--embed', '--encoding', 'utf8']);
-    expect(result.exitCode).toBe(0);
+			const result = await runCommand(inject, [file, '--embed']);
+			expect(result.exitCode).toBe(0);
 
-    const updated = await readFile(file, 'utf8');
-    // SVG inlined as utf8, not a file reference. Bytes preserved verbatim —
-    // double quotes percent-encode to %22 rather than swapping to single quotes.
-    expect(updated).toContain('href="data:image/svg+xml,');
-    expect(updated).toContain('xmlns=%22http://www.w3.org/2000/svg%22');
-    expect(updated).not.toContain('href="/favicon.svg"');
-    // ICO is always base64.
-    expect(updated).toContain('href="data:image/x-icon;base64,');
-  });
+			const updated = await Bun.file(file).text();
+			expect(updated).toContain(`href="data:image/x-icon;base64,${icoBytes.toString('base64')}"`);
+			expect(updated).not.toContain('href="/favicon.ico"');
+		});
 
-  it('--embed reads from --asset-dir when the assets live elsewhere', async () => {
-    const dir = await setupTmp();
-    const pages = join(dir, 'pages');
-    await mkdir(pages, { recursive: true });
-    const file = join(pages, 'index.html');
-    await writeFile(file, '<head></head>');
-    const icoBytes = Buffer.from([1, 2, 3, 4]);
-    await writeFile(join(dir, 'favicon.ico'), icoBytes); // in dir, not next to the HTML
+		it('--embed --encoding utf8 inlines the SVG source as a readable data: URI', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.ico'), Buffer.from([0, 0, 1, 0]));
+			await Bun.write(join(dir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
 
-    const result = await runCommand(inject, [file, '--embed', '--asset-dir', dir]);
-    expect(result.exitCode).toBe(0);
-    expect(await readFile(file, 'utf8')).toContain(`data:image/x-icon;base64,${icoBytes.toString('base64')}`);
-  });
+			const result = await runCommand(inject, [file, '--source', 'favicon.svg', '--embed', '--encoding', 'utf8']);
+			expect(result.exitCode).toBe(0);
 
-  it('--embed fails clearly when the referenced file is missing', async () => {
-    const dir = await setupTmp();
-    const file = join(dir, 'index.html');
-    await writeFile(file, '<head></head>'); // no favicon.ico written
+			const updated = await Bun.file(file).text();
+			// SVG inlined as utf8, not a file reference. Bytes preserved verbatim —
+			// double quotes percent-encode to %22 rather than swapping to single quotes.
+			expect(updated).toContain('href="data:image/svg+xml,');
+			expect(updated).toContain('xmlns=%22http://www.w3.org/2000/svg%22');
+			expect(updated).not.toContain('href="/favicon.svg"');
+			// ICO is always base64.
+			expect(updated).toContain('href="data:image/x-icon;base64,');
+		});
 
-    const result = await runCommand(inject, [file, '--embed']);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr.join('')).toContain('cannot read');
-  });
+		it('--embed reads from --asset-dir when the assets live elsewhere', async () => {
+			const dir = await setupTmp();
+			const pages = join(dir, 'pages');
+			await mkdir(pages, { recursive: true });
+			const file = join(pages, 'index.html');
+			await Bun.write(file, '<head></head>');
+			const icoBytes = Buffer.from([1, 2, 3, 4]);
+			await Bun.write(join(dir, 'favicon.ico'), icoBytes); // in dir, not next to the HTML
+
+			const result = await runCommand(inject, [file, '--embed', '--asset-dir', dir]);
+			expect(result.exitCode).toBe(0);
+			expect(await Bun.file(file).text()).toContain(`data:image/x-icon;base64,${icoBytes.toString('base64')}`);
+		});
+
+		it('--embed fails clearly when the referenced file is missing', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>'); // no favicon.ico written
+
+			const result = await runCommand(inject, [file, '--embed']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.stderr.join('')).toContain('cannot read');
+		});
+	});
 });

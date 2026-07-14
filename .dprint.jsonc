@@ -1,7 +1,7 @@
 { // git ls-remote "https://github.com/kjanat/kjanat.git" HEAD | awk '{print substr($1, 1, 8)}' | xargs -r -I{} sed -i -E 's#(github\.com/kjanat/kjanat/raw/)[0-9a-zA-Z]{4,40}(/configs/dprint\.remote\.json)#\1{}\2#g' .dprint.jsonc
+	"extends": "https://github.com/kjanat/kjanat/raw/7d87c3af/configs/dprint.remote.json",
 	"lineWidth": 120,
-	"extends": "https://github.com/kjanat/kjanat/raw/e5f1f678/configs/dprint.remote.json",
-	"excludes": ["tests/fixtures", "tests/*/fixture"],
+	"typescript": { "module.sortImportDeclarations": "maintain", "module.sortExportDeclarations": "maintain" },
 	"malva": { "useTabs": false },
 	"markup": {
 		"indentWidth": 2,
@@ -9,13 +9,11 @@
 		"scriptFormatter": "biome",
 		"formatComments": true,
 		"quotes": "single",
+		"associations": ["!**/*.svg"]
 	},
 	"markdown": { "associations": ["!**/*.md"] },
-	"prettier": {
-		"associations": ["**/*.md"],
-		"singleQuote": true,
-		"useTabs": false,
-	},
+	"prettier": { "associations": ["!**", "README.md"], "singleQuote": true, "useTabs": false },
+	"excludes": ["tests/fixtures", "tests/*/fixture"],
 	"plugins": [
 		"https://plugins.dprint.dev/prettier-0.72.0.json@6e7af2cb2182a5a11358d3adde9ae0ef3b94b7d2e5dcfdd252e3f7c3916541fe",
 	],

@@ -14,22 +14,22 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
+			"a11y": { "recommended": true, "noSvgWithoutTitle": "off" },
 			"complexity": { "recommended": true, "useLiteralKeys": "off" },
+			"correctness": { "recommended": true, "noNodejsModules": "off" },
 			"performance": { "recommended": true },
 			"security": { "recommended": true },
-			"correctness": { "recommended": true, "noNodejsModules": "off" },
-			"suspicious": { "recommended": true },
-			"a11y": { "recommended": true, "noSvgWithoutTitle": "off" }
+			"suspicious": { "recommended": true }
 		},
 		"domains": {
-			"test": "recommended",
 			"project": "recommended",
+			"test": "recommended",
 			"types": "recommended"
 		}
 	},
 	"javascript": {},
 	"assist": {
 		"enabled": true,
-		"actions": { "source": { "organizeImports": "off" } }
+		"actions": { "source": { "organizeImports": "on" } }
 	}
 }

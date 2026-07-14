@@ -15,9 +15,9 @@ export type IconSize = number & { readonly __iconSize: unique symbol };
  * @throws Error when out of range or not an integer.
  */
 export function parseSize(raw: unknown, max: number): IconSize {
-  const n = typeof raw === 'number' ? raw : Number(raw);
-  if (!Number.isInteger(n) || n < 1 || n > max) {
-    throw new Error(`Invalid size: ${String(raw)}. Must be an integer 1–${max}.`);
-  }
-  return n as IconSize;
+	const n = typeof raw === 'number' ? raw : Number(raw);
+	if (!Number.isInteger(n) || n < 1 || n > max) {
+		throw new Error(`Invalid size: ${String(raw)}. Must be an integer 1–${max}.`);
+	}
+	return n as IconSize;
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /**
  * # svg-to-ico
  *
@@ -40,23 +41,23 @@
  * ```
  */
 
-import { blue } from '#cli/colors';
+import { blue } from 'ansispeck';
+import { cli } from 'dreamcli';
 import { generate } from '#cli/commands/generate';
 import { inject } from '#cli/commands/inject';
-import { cli } from '@kjanat/dreamcli';
 
 /**
  * Top-level `svg-to-ico` CLI: bundles {@link generate} and {@link inject}
  * subcommands plus shell-completion generation.
  */
 export const app = cli('svg-to-ico')
-  .manifest({ from: import.meta.url })
-  .links()
-  .description(`Generate ICO favicons and inject ${blue('<link>')} tags into HTML files`)
-  .command(generate)
-  .command(inject)
-  .completions();
+	.manifest({ from: import.meta.url })
+	.links()
+	.description(`Generate ICO favicons and inject ${blue('<link>')} tags into HTML files`)
+	.command(generate)
+	.command(inject)
+	.completions();
 
 if (import.meta.main) {
-  void app.run();
+	void app.run({ help: { width: process.stdout.columns ?? Number.POSITIVE_INFINITY } });
 }

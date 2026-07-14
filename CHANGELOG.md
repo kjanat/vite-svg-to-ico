@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-07-15
+
+### Added
+
+- Add context-aware colors and OSC 8 file links throughout the `svg-to-ico`
+  CLI. Help, examples, generated-file paths, rewritten HTML paths, warnings,
+  and errors now use DreamCLI's gated `ansispeck` palette. `NO_COLOR`,
+  `FORCE_COLOR`, `--color`, and `--no-color` are honored automatically.
+- Add JSON command-definition output through `--help --json` for root and
+  command help, provided by DreamCLI 3.
+
+### Changed
+
+- Upgrade `@kjanat/dreamcli` from `^2.5.0` to `^3.0.0-rc.9` and use its
+  built-in themed help, path flags, and numeric array constraints instead of
+  local color, path, and size-validation implementations. CLI help now follows
+  the live terminal width, and validation errors use DreamCLI's standard
+  diagnostics.
+
 ## [4.0.0] - 2026-06-30
 
 ### Removed (BREAKING)
@@ -571,7 +590,9 @@ svgToIco({
 - Full TypeScript type exports
   (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.6...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v4.1.0...HEAD
+[4.1.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v4.0.0...v4.1.0
+[4.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.6...v4.0.0
 [3.1.6]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.5...v3.1.6
 [3.1.5]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.4...v3.1.5
 [3.1.4]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.3...v3.1.4

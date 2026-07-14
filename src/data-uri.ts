@@ -41,16 +41,16 @@ import type { DataUriEncoding } from '#types';
  *   breaking the byte-for-byte round-trip for any multi-line or CRLF source.
  */
 function escapeSvgUtf8(svg: string): string {
-  return svg
-    .replace(/%/g, '%25')
-    .replace(/"/g, '%22')
-    .replace(/&/g, '%26')
-    .replace(/#/g, '%23')
-    .replace(/</g, '%3C')
-    .replace(/>/g, '%3E')
-    .replace(/\t/g, '%09')
-    .replace(/\n/g, '%0A')
-    .replace(/\r/g, '%0D');
+	return svg
+		.replace(/%/g, '%25')
+		.replace(/"/g, '%22')
+		.replace(/&/g, '%26')
+		.replace(/#/g, '%23')
+		.replace(/</g, '%3C')
+		.replace(/>/g, '%3E')
+		.replace(/\t/g, '%09')
+		.replace(/\n/g, '%0A')
+		.replace(/\r/g, '%0D');
 }
 
 /**
@@ -62,8 +62,8 @@ function escapeSvgUtf8(svg: string): string {
  * {@link SvgSpec} exposes an `encoding` knob).
  */
 export function toDataUri(bytes: Buffer, mime: string, encoding: DataUriEncoding): string {
-  if (encoding === 'utf8') {
-    return `data:${mime},${escapeSvgUtf8(bytes.toString('utf8'))}`;
-  }
-  return `data:${mime};base64,${bytes.toString('base64')}`;
+	if (encoding === 'utf8') {
+		return `data:${mime},${escapeSvgUtf8(bytes.toString('utf8'))}`;
+	}
+	return `data:${mime};base64,${bytes.toString('base64')}`;
 }

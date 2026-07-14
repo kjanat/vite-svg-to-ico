@@ -1,6 +1,6 @@
-import { isHttpUrl, normalizeInput } from '#loadInput';
-import { arg } from '@kjanat/dreamcli';
 import { resolve } from 'node:path';
+import { arg } from 'dreamcli';
+import { isHttpUrl, normalizeInput } from '#loadInput';
 
 /**
  * Source-input arg. Accepts filesystem paths (resolved to absolute),
@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
  * URL strings (passed through; fetched at action time by {@link loadInputBytes}).
  */
 export const source = () =>
-  arg.custom<string>((raw) => {
-    const s = normalizeInput(String(raw));
-    return isHttpUrl(s) ? s : resolve(s);
-  });
+	arg.custom<string>((raw) => {
+		const s = normalizeInput(String(raw));
+		return isHttpUrl(s) ? s : resolve(s);
+	});

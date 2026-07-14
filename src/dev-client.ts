@@ -32,8 +32,8 @@ if (import.meta.hot) {
  * {@link hmrClientCode} when `hmr` is on.
  */
 export function buildShimScript(tags: HtmlTagDescriptor[], hmr: boolean): string {
-  const linksJson = JSON.stringify(tags.map((t) => t.attrs).filter(Boolean));
-  const script = `\
+	const linksJson = JSON.stringify(tags.map((t) => t.attrs).filter(Boolean));
+	const script = `\
 // svg-to-ico shim: dynamically inject favicon links
 const links = ${linksJson};
 document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(l => l.remove());
@@ -42,5 +42,5 @@ links.forEach(attrs => {
   Object.entries(attrs).forEach(([k, v]) => link.setAttribute(k, v));
   document.head.appendChild(link);
 });`;
-  return hmr ? `${script}\n${hmrClientCode}` : script;
+	return hmr ? `${script}\n${hmrClientCode}` : script;
 }

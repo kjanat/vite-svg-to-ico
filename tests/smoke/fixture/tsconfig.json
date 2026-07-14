@@ -1,6 +1,5 @@
 {
 	"extends": "../../../tsconfig.json",
-	"compilerOptions": {
-		"paths": { "vite-svg-to-ico": ["../../../src/index.ts"] }
-	}
+	"include": ["vite.config.ts"],
+	"exclude": []
 }
