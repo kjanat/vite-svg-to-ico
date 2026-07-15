@@ -41,6 +41,7 @@ export default defineConfig({
 				const contents = await fs.readFile(filePath, { encoding: 'utf8' });
 				await fs.writeFile('package.json', sortPackageJson(contents), { encoding: 'utf8' });
 				exec.execFile('npm', ['pkg', 'fix']);
+				exec.execFile('dprint', ['fmt', 'package.json']);
 			} catch (err) {
 				console.error('Failed to sort package.json:', err);
 			}
