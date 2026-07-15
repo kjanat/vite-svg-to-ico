@@ -28,7 +28,7 @@ export default defineConfig({
 			for (const [key, value] of Object.entries(exports)) {
 				if (typeof value !== 'string') continue;
 				const types = value.replace(/\.([cm]?)js$/, '.d.$1ts');
-				if (types === value || !(fs.access(types))) continue;
+				if (types === value || !(await fs.access(types).then(() => true, () => false))) continue;
 				exports[key] = { types, default: value };
 			}
 			return exports;
