@@ -1,4 +1,4 @@
-import exec from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { sortPackageJson } from 'sort-package-json';
 import { defineConfig } from 'tsdown';
@@ -35,13 +35,15 @@ export default defineConfig({
 		},
 	},
 	hooks: {
-		'build:done': async () => {
+		'build:done': async ({ options }) => {
+			if (options.watch) return;
 			try {
 				const filePath = new URL('./package.json', import.meta.url);
 				const contents = await fs.readFile(filePath, { encoding: 'utf8' });
-				await fs.writeFile('package.json', sortPackageJson(contents), { encoding: 'utf8' });
-				exec.execFile('npm', ['pkg', 'fix']);
-				exec.execFile('dprint', ['fmt', 'package.json']);
+				const sorted = sortPackageJson(contents);
+				if (sorted !== contents) await fs.writeFile(filePath, sorted, { encoding: 'utf8' });
+				execFileSync('npm', ['pkg', 'fix'], { stdio: 'inherit' });
+				execFileSync('dprint', ['fmt', 'package.json'], { stdio: 'inherit' });
 			} catch (err) {
 				console.error('Failed to sort package.json:', err);
 			}
