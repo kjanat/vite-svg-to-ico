@@ -41,6 +41,7 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 		'output',
 		flag
 			.string()
+			.nonEmpty()
 			.alias('o')
 			.default('favicon.ico')
 			.describe(
@@ -65,6 +66,7 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 		'source',
 		flag
 			.string()
+			.nonEmpty()
 			.describe(
 				`Filename of the source file (e.g. ${blue('favicon.svg')}). When set, an additional ${
 					blue('<link rel="') + red('icon') + blue('" type="') + red('image/svg+xml') + blue('">')
@@ -112,21 +114,24 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			} is set. Defaults to each HTML file's own directory.`,
 		),
 	)
-	.example(green('inject build/index.html'), 'Inject default favicon.ico tag (16/32/48) into a single file.')
 	.example(
-		green('inject build/index.html build/404.html -s16 -s32 -s48 --source favicon.svg'),
-		`Multi-file rewrite, also injects SVG source ${blue('<link>')}.`,
+		(meta) => green(`${meta.name} inject build/index.html`),
+		'Inject default favicon.ico tag (16/32/48) into a single file',
 	)
 	.example(
-		green('inject dist/index.html --base /repo/'),
-		'Inject under a subpath base (e.g. GitHub Pages project site).',
+		(meta) => green(`${meta.name} inject build/index.html build/404.html -s16 -s32 -s48 --source favicon.svg`),
+		`Multi-file rewrite, also injects SVG source ${blue('<link>')}`,
 	)
 	.example(
-		green('inject dist/index.html --source favicon.svg --embed --encoding utf8'),
-		'Inline the ICO + SVG straight into the HTML as data: URIs (no file references).',
+		(meta) => green(`${meta.name} inject dist/index.html --base /repo/`),
+		'Inject under a subpath base (e.g. GitHub Pages project site)',
+	)
+	.example(
+		(meta) => green(`${meta.name} inject dist/index.html --source favicon.svg --embed --encoding utf8`),
+		'Inline the ICO + SVG straight into the HTML as data: URIs (no file references)',
 	)
 	.action(async ({ args, flags, out }) => {
-		const { color: c, log, warn } = out;
+		const { color: c, status, warn } = out;
 		const files = args.files;
 		if (files.length === 0) {
 			throw new CLIError('At least one HTML file path is required', { code: 'MISSING_FILES' });
@@ -169,6 +174,8 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			};
 		}
 
+		/** Per-file outcome, in argument order — the payload behind `--json`. */
+		const results: { file: string; status: 'rewritten' | 'unchanged' | 'missing' }[] = [];
 		let rewritten = 0;
 		for (const rel of files) {
 			const abs = resolve(rel);
@@ -179,6 +186,7 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 				if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
 					const linkedPath = c.link(pathToFileURL(abs), c.cyan(abs));
 					warn(`${c.yellow('inject:')} "${rel}" — file not found at ${linkedPath}, ${c.dim('skipping')}`);
+					results.push({ file: abs, status: 'missing' });
 					continue;
 				}
 				throw e;
@@ -192,13 +200,17 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 				await mkdir(dir, { recursive: true });
 				await writeFile(abs, next, 'utf8');
 				rewritten++;
-				log(`${c.green('Rewrote')} ${c.link(pathToFileURL(abs), c.cyan(rel))}`);
+				results.push({ file: abs, status: 'rewritten' });
+				status(`${c.green('Rewrote')} ${c.link(pathToFileURL(abs), c.cyan(rel))}`);
 			} else {
-				log(`${c.dim('Unchanged')} ${c.link(pathToFileURL(abs), c.cyan(rel))}`);
+				results.push({ file: abs, status: 'unchanged' });
+				status(`${c.dim('Unchanged')} ${c.link(pathToFileURL(abs), c.cyan(rel))}`);
 			}
 		}
 
 		if (rewritten === 0 && files.length > 0) {
-			log(c.yellow('No files were modified.'));
+			status(c.yellow('No files were modified.'));
 		}
+
+		if (out.jsonMode) out.json({ rewritten, files: results });
 	});

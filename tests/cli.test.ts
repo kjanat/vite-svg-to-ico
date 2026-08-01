@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { cwd } from 'node:process';
 import { createOutput } from 'dreamcli';
 import { runCommand } from 'dreamcli/testkit';
+import { app } from '#cli';
 import { inject } from '#cli/commands/inject';
 import { generate } from '#internals/cli/commands/generate.ts';
 
@@ -75,19 +76,55 @@ describe('CLI', () => {
 		it('uses DreamCLI colors and ansispeck hyperlinks when styling is enabled', async () => {
 			const dir = await setupTmp();
 			const stdout: string[] = [];
+			const stderr: string[] = [];
 			const out = createOutput({
 				color: true,
 				isTTY: true,
 				stdout: (value) => stdout.push(value),
+				stderr: (value) => stderr.push(value),
 			});
 
 			const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16'], { out });
 			expect(result.exitCode).toBe(0);
 
-			const rendered = stdout.join('');
+			// Progress notes are status lines: stderr, so stdout stays pipeable.
+			const rendered = stderr.join('');
+			expect(stdout.join('')).toBe('');
 			expect(rendered).toContain('\x1b[32mWrote\x1b[39m');
 			expect(rendered).toContain('\x1b]8;;file://');
 			expect(rendered).toContain(`\x1b[36m${join(dir, 'favicon.ico')}\x1b[39m`);
+		});
+
+		it('silences progress notes under --quiet but still writes the ICO', async () => {
+			const dir = await setupTmp();
+			const result = await Bun.$`bun ${CLI_ENTRY} --quiet generate ${FIXTURE} --out-dir ${dir} --sizes 16`
+				.quiet()
+				.nothrow();
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout.toString()).toBe('');
+			expect(result.stderr.toString()).toBe('');
+			expect((await Bun.file(join(dir, 'favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
+		});
+
+		it('emits a machine-readable summary on stdout under --json', async () => {
+			const dir = await setupTmp();
+			const result = await Bun.$`bun ${CLI_ENTRY} --json generate ${FIXTURE} --out-dir ${dir} --sizes 16 --sizes 32`
+				.quiet()
+				.nothrow();
+			expect(result.exitCode).toBe(0);
+
+			const summary = JSON.parse(result.stdout.toString());
+			expect(summary.ico).toBe(join(dir, 'favicon.ico'));
+			expect(summary.sizes).toEqual([16, 32]);
+			expect(summary.files).toEqual([join(dir, 'favicon.ico')]);
+			expect(summary.bytes).toBeGreaterThan(0);
+		});
+
+		it('accepts --no-optimize', async () => {
+			const dir = await setupTmp();
+			const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16', '--no-optimize']);
+			expect(result.exitCode).toBe(0);
+			expect((await Bun.file(join(dir, 'favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
 		});
 
 		it('emits source file when --emit-source is set', async () => {
@@ -168,6 +205,111 @@ describe('CLI', () => {
 			const result = await withStubbedFetch(stub, () => runCommand(generate, [url, '--out-dir', dir]));
 			expect(result.exitCode).not.toBe(0);
 			expect([...result.stderr, ...result.stdout].join('\n')).toContain('404');
+		});
+	});
+
+	describe('generate input diagnostics', () => {
+		it('rejects an ICO input and points at the same-named source beside it', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'favicon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(generate, [join(dir, 'favicon.ico'), '--out-dir', dir]);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('INPUT_IS_ICO');
+			expect(result.error?.suggest).toContain(join(dir, 'favicon.svg'));
+			// The ICO is an output, and the flag that names it is the actionable part.
+			expect(result.error?.suggest).toContain('--output');
+		});
+
+		it('explains an ICO input even when no source sits beside it', async () => {
+			const dir = await setupTmp();
+
+			const result = await runCommand(generate, [join(dir, 'favicon.ico'), '--out-dir', dir]);
+			expect(result.error?.code).toBe('INPUT_IS_ICO');
+			expect(result.error?.suggest).toContain('--output favicon.ico');
+		});
+
+		it('reports a missing source with the sibling the user probably meant', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'logo.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(generate, [join(dir, 'logo.png'), '--out-dir', dir]);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('INPUT_NOT_FOUND');
+			expect(result.error?.message).toContain('Source image not found');
+			expect(result.error?.suggest).toBe(`Did you mean '${join(dir, 'logo.svg')}'?`);
+		});
+
+		it('lists the images it did find when nothing matches the stem', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'brand.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(generate, [join(dir, 'missing.svg'), '--out-dir', dir]);
+			expect(result.error?.code).toBe('INPUT_NOT_FOUND');
+			expect(result.error?.suggest).toContain('brand.svg');
+		});
+
+		it('falls back to a plain hint when the directory holds no images', async () => {
+			const dir = await setupTmp();
+
+			const result = await runCommand(generate, [join(dir, 'missing.svg'), '--out-dir', dir]);
+			expect(result.error?.code).toBe('INPUT_NOT_FOUND');
+			expect(result.error?.suggest).toContain('not the ICO to create');
+		});
+
+		it('rejects a directory input and names an image inside it', async () => {
+			const dir = await setupTmp();
+			const assets = join(dir, 'assets');
+			await mkdir(assets, { recursive: true });
+			await Bun.write(join(assets, 'icon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(generate, [assets, '--out-dir', dir]);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('INPUT_IS_DIRECTORY');
+			expect(result.error?.suggest).toBe(`Did you mean '${join(assets, 'icon.svg')}'?`);
+		});
+
+		it('serializes the diagnostic under --json instead of an unexpected-error dump', async () => {
+			const dir = await setupTmp();
+			const result = await Bun.$`bun ${CLI_ENTRY} --json generate ${join(dir, 'favicon.ico')}`.quiet().nothrow();
+			expect(result.exitCode).not.toBe(0);
+
+			const { error } = JSON.parse(result.stdout.toString());
+			expect(error.code).toBe('INPUT_IS_ICO');
+			expect(error.details.input).toBe(join(dir, 'favicon.ico'));
+		});
+	});
+
+	describe('dispatch', () => {
+		it('runs generate for a bare input path — no subcommand needed', async () => {
+			const dir = await setupTmp();
+			const result = await app.execute([FIXTURE, '--out-dir', dir, '--sizes', '16']);
+			expect(result.exitCode).toBe(0);
+			expect((await Bun.file(join(dir, 'favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
+		});
+
+		it('still routes the explicit generate name', async () => {
+			const dir = await setupTmp();
+			const result = await app.execute(['generate', FIXTURE, '--out-dir', dir, '--sizes', '16']);
+			expect(result.exitCode).toBe(0);
+			expect((await Bun.file(join(dir, 'favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
+		});
+
+		it('lists generate as the default command in root help', async () => {
+			const result = await app.execute(['--help'], { help: { width: 200 } });
+			expect(result.exitCode).toBe(0);
+
+			const help = result.stdout.join('\n');
+			expect(help).toContain('generate (default)');
+			expect(help).toContain('inject');
+			// Examples resolve the real program name rather than hardcoding one.
+			expect(help).toContain('$ svg-to-ico src/icon.svg');
+		});
+
+		it('keeps suggesting a real command for a near-miss typo', async () => {
+			const result = await app.execute(['injct', 'index.html']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.stderr.join('\n')).toContain("Did you mean 'inject'?");
 		});
 	});
 
@@ -307,6 +449,23 @@ describe('CLI', () => {
 			const result = await runCommand(inject, [file, '--embed']);
 			expect(result.exitCode).not.toBe(0);
 			expect(result.stderr.join('')).toContain('cannot read');
+		});
+
+		it('reports per-file outcomes on stdout under --json', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			const absent = join(dir, 'gone.html');
+			await Bun.write(file, HTML);
+
+			const result = await Bun.$`bun ${CLI_ENTRY} --json inject ${file} ${absent}`.quiet().nothrow();
+			expect(result.exitCode).toBe(0);
+
+			const summary = JSON.parse(result.stdout.toString());
+			expect(summary.rewritten).toBe(1);
+			expect(summary.files).toEqual([
+				{ file, status: 'rewritten' },
+				{ file: absent, status: 'missing' },
+			]);
 		});
 	});
 });

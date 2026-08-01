@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { blue, green, red } from 'ansispeck';
 import { command, flag } from 'dreamcli';
-import { source } from '#cli/args/source';
+import { assertReadableSource, source } from '#cli/args/source';
 import { sizesFlag } from '#cli/flags/sizes';
 import { packIco } from '#ico';
 import { inputBasename, loadInputBytes } from '#loadInput';
@@ -42,6 +42,7 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 		'output',
 		flag
 			.string()
+			.nonEmpty()
 			.alias('o')
 			.default('favicon.ico')
 			.describe(
@@ -84,20 +85,24 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 		flag
 			.boolean()
 			.default(true)
+			.negatable()
 			.describe(
-				`Apply max PNG compression (level 9 + adaptive filtering). Disable with ${blue('--optimize')}=${
-					red('false')
+				`Apply max PNG compression (level 9 + adaptive filtering). Disable with ${
+					blue('--no-optimize')
 				} for faster builds at the cost of larger files.`,
 			),
 	)
-	.example(green('generate src/icon.svg'), 'Write favicon.ico (16/32/48) to the current directory.')
 	.example(
-		green('generate src/icon.svg -d build -s16 -s32 -s48 --emit-sizes png --emit-source'),
-		'Generate ICO + per-size PNGs + copy of source into build/.',
+		(meta) => green(`${meta.name} src/icon.svg`),
+		'Shorthand — no subcommand needed. Writes favicon.ico (16/32/48) to the current directory',
 	)
 	.example(
-		green('generate src/icon.png -s64 -s128 -s256 -o icons/favicon.ico'),
-		'PNG input, custom sizes, nested output path.',
+		(meta) => green(`${meta.name} generate src/icon.svg -d build -s16 -s32 -s48 --emit-sizes png --emit-source`),
+		'Generate ICO + per-size PNGs + copy of source into build/',
+	)
+	.example(
+		(meta) => green(`${meta.name} generate src/icon.png -s64 -s128 -s256 -o icons/favicon.ico`),
+		'PNG input, custom sizes, nested output path',
 	)
 	.action(async ({ args, flags, out }) => {
 		const sizes = flags.sizes;
@@ -106,6 +111,7 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 		const outputStem = flags.output.replace(/\.ico$/i, '');
 		const { color: c } = out;
 
+		await assertReadableSource(input);
 		const inputBuffer = await loadInputBytes(input);
 		const pngs = await generateSizedPngs(inputBuffer, {
 			sizes,
@@ -115,11 +121,17 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 
 		await mkdir(outDir, { recursive: true });
 
+		/** Every path written, in write order — the payload behind `--json`. */
+		const written: string[] = [];
+
 		async function writeAt(targetPath: string, data: Buffer | string, detail?: string) {
 			await mkdir(dirname(targetPath), { recursive: true });
 			await writeFile(targetPath, data);
+			written.push(targetPath);
+			// A status line, not a log line: these are progress notes, so stdout
+			// stays clean for piping and `--quiet` actually silences them.
 			const linkedPath = c.link(pathToFileURL(targetPath), c.cyan(targetPath));
-			out.log(`${c.green('Wrote')} ${linkedPath}${detail ? ` ${c.dim(detail)}` : ''}`);
+			out.status(`${c.green('Wrote')} ${linkedPath}${detail ? ` ${c.dim(detail)}` : ''}`);
 		}
 
 		const icoPath = resolve(outDir, flags.output);
@@ -147,4 +159,6 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 				}
 			}
 		}
+
+		if (out.jsonMode) out.json({ input, ico: icoPath, sizes, bytes: icoBuffer.length, files: written });
 	});

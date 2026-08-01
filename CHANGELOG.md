@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `generate` is now the CLI's **default command**, so `svg-to-ico src/icon.svg`
+  works without a subcommand. Previously a bare path was rejected with
+  `Unknown command: src/icon.svg`. The explicit `svg-to-ico generate …` form
+  still routes and is listed in help.
+- Actionable diagnostics for a bad `generate` input, replacing raw
+  `Unexpected error: ENOENT`/`EISDIR` dumps. Each names the file you probably
+  meant and carries a stable error code:
+  - `INPUT_IS_ICO` — the input is an ICO (the format `generate` *writes*);
+    suggests the same-named source beside it and points at `--output`.
+  - `INPUT_NOT_FOUND` — suggests a sibling sharing the basename, otherwise
+    lists the supported images found in that directory.
+  - `INPUT_IS_DIRECTORY` — suggests an image inside the directory.
+- `--json` now emits a summary for both commands instead of nothing:
+  `generate` reports `{ input, ico, sizes, bytes, files }` and `inject` reports
+  `{ rewritten, files: [{ file, status }] }`. Input diagnostics serialize as
+  `{ error: { code, message, suggest, details } }`.
+- `--no-optimize` as the negated spelling of `--optimize`, rendered
+  `--[no-]optimize` in help.
+
+### Changed
+
+- Progress notes (`Wrote …`, `Rewrote …`, `Unchanged …`) moved from stdout to
+  stderr as DreamCLI status lines. Stdout is now clean for piping, and the
+  advertised `--quiet`/`-q` flag actually silences them — before, it had no
+  effect on either command.
+- Help examples resolve the invoked program name at render time, so they read
+  `$ svg-to-ico generate src/icon.svg` rather than a bare `$ generate …`, which
+  looked like the binary was named `generate`.
+- `--output` (both commands) and `--source` (`inject`) reject the empty string
+  at parse time rather than producing a file named after the extension alone.
+- Upgrade `@kjanat/dreamcli` from `^3.0.0-rc.9` to `^3.0.1` and `ansispeck`
+  from `^0.1.2` to `^0.4.1`.
+
 ## [4.1.0] - 2026-07-15
 
 ### Added

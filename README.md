@@ -208,6 +208,34 @@ svg-to-ico generate src/icon.svg --out-dir build --sizes 16 --sizes 32 --sizes 4
 svg-to-ico inject build/index.html --sizes 16 --sizes 32 --sizes 48 --source icon.svg
 ```
 
+`generate` is the default command, so the common case needs no subcommand —
+these two are the same invocation:
+
+```sh
+svg-to-ico src/icon.svg --out-dir public
+svg-to-ico generate src/icon.svg --out-dir public
+```
+
+`<input>` is the **source image to rasterize**, not the ICO to create — the
+ICO filename comes from `--output` (default `favicon.ico`). Pointing `generate`
+at an ICO, a missing file, or a directory fails with a message naming the file
+you probably meant:
+
+```console
+$ svg-to-ico public/favicon.ico
+public/favicon.ico is an ICO — that is what generate writes, not what it reads
+Suggestion: Did you mean 'public/favicon.svg'? The ICO name comes from --output (default favicon.ico)
+```
+
+Both commands write their progress notes (`Wrote …`, `Rewrote …`) to stderr, so
+stdout stays clean for piping: `--quiet`/`-q` silences them, and `--json` puts a
+machine-readable summary — or a structured `{ error: { code, suggest } }` — on
+stdout instead.
+
+```sh
+svg-to-ico src/icon.svg --json | jq -r '.files[]'
+```
+
 Run `svg-to-ico --help` for the full surface.
 
 ### Override sharp options
