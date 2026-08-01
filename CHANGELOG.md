@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{ error: { code, message, suggest, details } }`.
 - `--no-optimize` as the negated spelling of `--optimize`, rendered
   `--[no-]optimize` in help.
+- `inject --embed` now rasterizes a missing target from `--source` instead of
+  failing. Under `--embed` the href carries the image itself, so nothing has to
+  exist at the referenced path — the previous `EMBED_READ` error was demanding
+  a file the output never points at. Bytes are produced in memory and no image
+  is written; a file on disk still wins, and the error stands when there is no
+  usable `--source`. `sharp` loads through a dynamic import, so a plain
+  `inject` run does not pay for the native module.
 - `inject --png-sizes`, which injects a per-size
   `<link rel="icon" type="image/png" sizes="NxN">` for each size given. The
   plugin could already emit these through a `{ format: 'png', inject }` spec,

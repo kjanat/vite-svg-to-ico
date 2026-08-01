@@ -8,7 +8,7 @@ import { pngSizesFlag, sizesFlag } from '#cli/flags/sizes';
 import { toDataUri } from '#dataUri';
 import { buildFaviconTags, type TagContext } from '#faviconTags';
 import { injectTagsIntoHtml } from '#injectHtml';
-import { resolveSpecs } from '#resolveSpecs';
+import { type ResolvedInjection, resolveSpecs } from '#resolveSpecs';
 import type { EmitSpec } from '#types';
 import { DATA_URI_ENCODINGS } from '#types';
 
@@ -144,20 +144,63 @@ Defaults to each HTML file's own directory.`,
 		const { injections } = resolveSpecs(specs, { inputFormat: flags['input-format'] });
 
 		/**
+		 * Bytes for an embed target that is not on disk, rasterized from `--source`.
+		 *
+		 * Only reachable under `--embed`, where the href carries the image itself,
+		 * so nothing has to exist at the referenced path — the file the tag names
+		 * is never fetched. Returns `undefined` when there is no usable source,
+		 * leaving the caller to report the original read failure.
+		 *
+		 * `sharp` loads through a dynamic import so a plain `inject` run, which
+		 * rasterizes nothing, does not pay for the native module.
+		 */
+		async function rasterizeFor(inj: ResolvedInjection, assetDir: string): Promise<Buffer | undefined> {
+			if (sourceName === undefined) return undefined;
+			let sourceBytes: Buffer;
+			try {
+				sourceBytes = await readFile(resolve(assetDir, sourceName));
+			} catch {
+				return undefined;
+			}
+			if (inj.type === 'image/svg+xml') return sourceBytes;
+
+			const { generateSizedPngs } = await import('#raster');
+			if (inj.type === 'image/x-icon') {
+				const { packIco } = await import('#ico');
+				return packIco(await generateSizedPngs(sourceBytes, { sizes: flags.sizes, optimize: true }));
+			}
+			if (inj.type === 'image/png') {
+				const size = Number.parseInt(inj.sizes ?? '', 10);
+				if (!Number.isInteger(size)) return undefined;
+				const [png] = await generateSizedPngs(sourceBytes, { sizes: [size], optimize: true });
+				return png?.buffer;
+			}
+			return undefined;
+		}
+
+		/**
 		 * Read the favicon files an embed run needs (ICO, plus the SVG source if
 		 * set) from `assetDir`, returning a {@link TagContext} embed resolver that
-		 * inlines them by filename. Throws a clear error if a referenced file is missing.
+		 * inlines them by filename. Missing files fall back to {@link rasterizeFor};
+		 * anything still unresolved throws.
 		 */
 		async function embedResolverFor(assetDir: string): Promise<NonNullable<TagContext['embed']>> {
 			// Iterate injections: resolveSpecs() drops inert tags (an SVG source under
 			// `--input-format png`), and reading their files would fail for nothing.
-			const names = [...new Set(injections.flatMap((inj) => (inj.href.kind === 'file' ? [inj.href.filename] : [])))];
+			const byName = new Map<string, ResolvedInjection>();
+			for (const inj of injections) if (inj.href.kind === 'file') byName.set(inj.href.filename, inj);
 			const bytesByName = new Map<string, Buffer>();
-			for (const name of names) {
+			for (const [name, inj] of byName) {
 				const path = resolve(assetDir, name);
 				try {
 					bytesByName.set(name, await readFile(path));
 				} catch (e) {
+					const rasterized = await rasterizeFor(inj, assetDir);
+					if (rasterized) {
+						bytesByName.set(name, rasterized);
+						status(`${c.dim('Rasterized')} ${c.cyan(name)} ${c.dim(`from ${sourceName} (not on disk)`)}`);
+						continue;
+					}
 					const linkedPath = c.link(pathToFileURL(path), c.cyan(path));
 					throw new CLIError(
 						`${c.red('inject --embed:')} cannot read "${name}" at ${linkedPath}: ${(e as Error).message}`,

@@ -222,6 +222,18 @@ Both sides derive the per-size filenames from `--output`, so `-o logo.ico`
 yields `logo-192x192.png` in the files and in the hrefs. Under `--embed` the
 PNG bytes are inlined as `data:` URIs like the ICO.
 
+With `--embed` the href carries the image, so nothing needs to exist at the
+referenced path. If a target is missing, it is rasterized from `--source` in
+memory — no image is written to disk, and one HTML rewrite covers the whole
+favicon set:
+
+```sh
+svg-to-ico inject dist/index.html --source favicon.svg --png-sizes 192 --embed
+```
+
+A file already on disk still wins; the run only fails if there is no usable
+`--source` to fall back to.
+
 `generate` is the default command, so the common case needs no subcommand —
 these two are the same invocation:
 

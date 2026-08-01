@@ -646,6 +646,50 @@ describe('CLI', () => {
 			expect(result.stderr.join('')).toContain('must be <= 4096');
 		});
 
+		it('--embed rasterizes a missing target from --source without writing it', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(
+				inject,
+				[file, '--source', 'favicon.svg', '--sizes', '16', '--png-sizes', '32', '--embed'],
+			);
+			expect(result.exitCode).toBe(0);
+
+			const updated = await Bun.file(file).text();
+			expect(updated).toContain('href="data:image/x-icon;base64,');
+			expect(updated).toContain('href="data:image/png;base64,');
+			// The href carries the bytes, so no file is needed at the referenced path.
+			expect(await Bun.file(join(dir, 'favicon.ico')).exists()).toBe(false);
+			expect(await Bun.file(join(dir, 'favicon-32x32.png')).exists()).toBe(false);
+			expect(result.stderr.join('\n')).toContain('Rasterized');
+		});
+
+		it('--embed still fails when nothing can be rasterized from', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+
+			const result = await runCommand(inject, [file, '--embed']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('EMBED_READ');
+		});
+
+		it('--embed prefers the file on disk over rasterizing', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), await Bun.file(FIXTURE).text());
+			const icoBytes = Buffer.from([0, 0, 1, 0, 9, 9]);
+			await Bun.write(join(dir, 'favicon.ico'), icoBytes);
+
+			const result = await runCommand(inject, [file, '--source', 'favicon.svg', '--embed']);
+			expect(result.exitCode).toBe(0);
+			expect(await Bun.file(file).text()).toContain(`data:image/x-icon;base64,${icoBytes.toString('base64')}`);
+		});
+
 		it('reports per-file outcomes on stdout under --json', async () => {
 			const dir = await setupTmp();
 			const file = join(dir, 'index.html');
