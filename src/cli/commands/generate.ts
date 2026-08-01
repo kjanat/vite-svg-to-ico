@@ -59,9 +59,9 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 			.path()
 			.alias('d')
 			.describe(
-				`Directory to write outputs into. Relative paths resolve from the current working directory. Created if missing. Defaults to the source image's own directory, so ${
-					blue('generate public/icon.svg')
-				} writes ${blue('public/favicon.ico')}; ${red('http(s)://')} sources fall back to the current directory.`,
+				`Directory to write outputs into. Relative paths resolve from the current working directory. Created if missing. Defaults to the source image's own directory; ${
+					red('http(s)://')
+				} sources fall back to the current directory.`,
 			),
 	)
 	.flag(
@@ -89,14 +89,12 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 			.default(true)
 			.negatable()
 			.describe(
-				`Apply max PNG compression (level 9 + adaptive filtering). Disable with ${
-					blue('--no-optimize')
-				} for faster builds at the cost of larger files.`,
+				'Apply max PNG compression (level 9 + adaptive filtering). Disabling it builds faster at the cost of larger files.',
 			),
 	)
 	.example(
 		(meta) => green(`${meta.name} public/icon.svg`),
-		'Shorthand — no subcommand needed. Writes public/favicon.ico (16/32/48), beside the source',
+		'Write public/favicon.ico (16/32/48) beside the source',
 	)
 	.example(
 		(meta) => green(`${meta.name} generate src/icon.svg -d build -s16 -s32 -s48 --emit-sizes png --emit-source`),
@@ -109,10 +107,9 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 	.action(async ({ args, flags, out }) => {
 		const sizes = flags.sizes;
 		const input = args.input;
-		// Unset --out-dir means "beside the source": `generate public/icon.svg` is
-		// asking for public/favicon.ico, not one in whatever directory the shell
-		// happens to be in. Remote sources have no local directory to sit beside,
-		// so they keep the cwd fallback.
+		// Outputs belong beside the image they came from, not in whatever directory
+		// the shell happens to be in. Remote sources have no local directory to sit
+		// beside, so they fall back to the cwd.
 		const outDir = flags['out-dir'] ?? (isHttpUrl(input) ? cwd() : dirname(input));
 		const outputStem = flags.output.replace(/\.ico$/i, '');
 		const { color: c } = out;
@@ -134,8 +131,8 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 			await mkdir(dirname(targetPath), { recursive: true });
 			await writeFile(targetPath, data);
 			written.push(targetPath);
-			// A status line, not a log line: these are progress notes, so stdout
-			// stays clean for piping and `--quiet` actually silences them.
+			// status(), not log(): a progress note belongs on stderr so stdout stays
+			// pipeable, and it is what `--quiet` suppresses.
 			const linkedPath = c.link(pathToFileURL(targetPath), c.cyan(targetPath));
 			out.status(`${c.green('Wrote')} ${linkedPath}${detail ? ` ${c.dim(detail)}` : ''}`);
 		}
@@ -149,11 +146,10 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 
 		if (flags['emit-source']) {
 			const sourcePath = resolve(outDir, inputBasename(input));
-			// Writing beside the source makes the copy target the source itself.
-			// Rewriting a file with its own bytes gains nothing and risks truncating
-			// the original if the write is interrupted.
+			// Rewriting the source with its own bytes gains nothing and risks
+			// truncating it if the write is interrupted.
 			if (sourcePath === input) {
-				out.status(`${c.dim('Skipped')} ${c.cyan(sourcePath)} ${c.dim('(source copy is the source)')}`);
+				out.status(`${c.dim('Skipped')} ${c.cyan(sourcePath)} ${c.dim('(source already in the output directory)')}`);
 			} else {
 				await writeAt(sourcePath, inputBuffer, '(source)');
 			}

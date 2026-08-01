@@ -23,10 +23,9 @@
  * ## Subcommands
  *
  * - `generate <input>` — rasterize an image to a multi-size ICO (and
- *   optionally per-size PNGs/ICOs + a copy of the source) on disk. Registered
- *   as the **default** command, so `svg-to-ico src/icon.svg` is shorthand for
- *   `svg-to-ico generate src/icon.svg`; the explicit name still routes and is
- *   listed in help.
+ *   optionally per-size PNGs/ICOs + a copy of the source) on disk. The default
+ *   command: `svg-to-ico public/icon.svg` and `svg-to-ico generate
+ *   public/icon.svg` are the same invocation.
  * - `inject <files...>` — rewrite existing HTML files: strip
  *   `<link rel="icon">`/`<link rel="shortcut icon">` tags, splice the
  *   configured favicon tag set before `</head>`, preserve `apple-touch-icon`.
@@ -36,8 +35,8 @@
  * # SvelteKit adapter-static, wired into package.json scripts:
  * #   "build": "vite build && svg-to-ico inject build/index.html build/404.html -s 16 -s 32 -s 48 --source favicon.svg"
  *
- * # Shorthand: no subcommand needed for the common case.
- * svg-to-ico src/icon.svg --out-dir build
+ * # Write public/favicon.ico beside the source:
+ * svg-to-ico public/icon.svg
  *
  * # Generate a 16/32/48 ICO + per-size PNGs alongside it:
  * svg-to-ico generate src/icon.svg --out-dir build -s 16 -s 32 -s 48 --emit-sizes png --emit-source
@@ -56,11 +55,10 @@ import { inject } from '#cli/commands/inject';
  * Top-level `svg-to-ico` CLI: bundles {@link generate} and {@link inject}
  * subcommands plus shell-completion generation.
  *
- * {@link generate} is registered as the routed default command — the one-off
- * "turn this SVG into a favicon" case is what most invocations want, and
- * requiring a subcommand for it turned a valid path into `Unknown command`.
- * `{ route: true }` keeps `svg-to-ico generate …` working and keeps the
- * command listed in help, so the shorthand adds a surface without hiding one.
+ * {@link generate} is the default command: the one-off "turn this image into a
+ * favicon" case is what most invocations want, so it needs no subcommand.
+ * `{ route: true }` keeps the explicit name dispatchable and listed in help,
+ * so the shorthand is an extra surface rather than a replacement.
  */
 export const app = cli('svg-to-ico')
 	.manifest({ from: import.meta.url })

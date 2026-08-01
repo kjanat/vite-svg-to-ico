@@ -228,8 +228,8 @@ you probably meant:
 
 ```console
 $ svg-to-ico public/favicon.ico
-public/favicon.ico is an ICO — that is what generate writes, not what it reads
-Suggestion: Did you mean 'public/favicon.svg'? The ICO name comes from --output (default favicon.ico)
+Cannot read public/favicon.ico: ICO is an output format, not a source image
+Suggestion: Did you mean 'public/favicon.svg'? The ICO filename comes from --output (default favicon.ico)
 ```
 
 Both commands write their progress notes (`Wrote …`, `Rewrote …`) to stderr, so
@@ -238,7 +238,7 @@ machine-readable summary — or a structured `{ error: { code, suggest } }` — 
 stdout instead.
 
 ```sh
-svg-to-ico src/icon.svg --json | jq -r '.files[]'
+svg-to-ico public/icon.svg --json | jq -r '.files[]'
 ```
 
 Run `svg-to-ico --help` for the full surface.

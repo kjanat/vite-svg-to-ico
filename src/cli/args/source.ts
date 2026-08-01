@@ -61,14 +61,12 @@ async function imagesIn(dir: string, limit = 3): Promise<string[]> {
 }
 
 /**
- * Fail before sharp does, naming the fix.
+ * Reject an unreadable source with a message that names the likely intended
+ * file, rather than letting `readFile` surface a bare `ENOENT`/`EISDIR`.
  *
- * `generate` reads a *source* image and writes the ICO, and the overwhelmingly
- * common mistake is handing it the ICO path it is supposed to create. Node's
- * raw `ENOENT`/`EISDIR` mention neither that distinction nor the file sitting
- * right next to the one that was typed, so the three reachable bad inputs — an
- * ICO source, a missing file, a directory — are mapped onto {@link CLIError}s
- * that point at the likely intended file.
+ * `generate` reads a *source* image and writes the ICO, and the common mistake
+ * is handing it the ICO path it is supposed to create — hence the three cases
+ * covered here: an ICO source, a missing file, a directory.
  *
  * `http(s)://` inputs are left alone; {@link loadInputBytes} already reports
  * fetch failures with URL and status.
@@ -83,12 +81,12 @@ export async function assertReadableSource(input: string): Promise<void> {
 	// that does not, and sharp cannot decode the format either way.
 	if (inputExtname(path) === '.ico') {
 		const twin = await sameStemSource(path);
-		throw new CLIError(`${shown} is an ICO — that is what generate writes, not what it reads`, {
+		throw new CLIError(`Cannot read ${shown}: ICO is an output format, not a source image`, {
 			code: 'INPUT_IS_ICO',
 			details,
 			suggest: twin === undefined
 				? `Pass the source image (e.g. icon.svg) and name the ICO with --output ${basename(path)}`
-				: `Did you mean '${twin}'? The ICO name comes from --output (default favicon.ico)`,
+				: `Did you mean '${twin}'? The ICO filename comes from --output (default favicon.ico)`,
 		});
 	}
 
@@ -112,7 +110,7 @@ export async function assertReadableSource(input: string): Promise<void> {
 
 	if (stats.isDirectory()) {
 		const [first] = await imagesIn(path, 1);
-		throw new CLIError(`Source image expected, but ${shown} is a directory`, {
+		throw new CLIError(`Cannot read ${shown}: it is a directory, not a source image`, {
 			code: 'INPUT_IS_DIRECTORY',
 			details,
 			suggest: first === undefined

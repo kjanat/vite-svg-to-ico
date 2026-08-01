@@ -94,7 +94,7 @@ describe('CLI', () => {
 
 			const result = await runCommand(generate, [svg, '--sizes', '16', '--emit-source']);
 			expect(result.exitCode).toBe(0);
-			expect(result.stderr.join('\n')).toContain('source copy is the source');
+			expect(result.stderr.join('\n')).toContain('source already in the output directory');
 			expect(await Bun.file(svg).text()).toBe(original);
 		});
 
