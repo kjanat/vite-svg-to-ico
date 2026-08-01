@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{ error: { code, message, suggest, details } }`.
 - `--no-optimize` as the negated spelling of `--optimize`, rendered
   `--[no-]optimize` in help.
+- `generate --keep-name`, which names the ICO after the source image
+  (`logo.svg` -> `logo.ico`, with `--emit-sizes` following the same stem)
+  instead of the `favicon.ico` default. Intended for converting a set of icons,
+  where the default collapses every source onto one filename; a renamed ICO is
+  no longer auto-requested by browsers and needs its own `<link>` tag. Passing
+  it together with `--output` is an error rather than a silent precedence rule,
+  and `--no-keep-name` opts back out when a wrapper script presets it.
 
 ### Changed (BREAKING)
 

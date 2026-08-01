@@ -3,11 +3,11 @@ import { dirname, resolve } from 'node:path';
 import { cwd } from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { blue, green, red } from 'ansispeck';
-import { command, flag } from 'dreamcli';
+import { CLIError, command, flag } from 'dreamcli';
 import { assertReadableSource, source } from '#cli/args/source';
 import { sizesFlag } from '#cli/flags/sizes';
 import { packIco } from '#ico';
-import { inputBasename, isHttpUrl, loadInputBytes } from '#loadInput';
+import { inputBasename, inputStem, isHttpUrl, loadInputBytes } from '#loadInput';
 import { generateSizedPngs } from '#raster';
 
 /**
@@ -45,11 +45,28 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 			.string()
 			.nonEmpty()
 			.alias('o')
-			.default('favicon.ico')
 			.describe(
 				`Filename for the combined ICO (relative to ${
 					blue('--out-dir')
-				}). May include subdirectories; they are created as needed.`,
+				}). May include subdirectories; they are created as needed. Defaults to ${
+					blue('favicon.ico')
+				}, the name browsers request on their own.`,
+			),
+	)
+	.flag(
+		'keep-name',
+		flag
+			.boolean()
+			.default(false)
+			.negatable()
+			.describe(
+				`Name the ICO after the source image — ${blue('icon.svg')} yields ${blue('icon.ico')} instead of ${
+					blue('favicon.ico')
+				}, and ${
+					blue('--emit-sizes')
+				} follows the same stem. Browsers only auto-request favicon.ico, so a renamed ICO needs its own <link> tag. Conflicts with ${
+					blue('--output')
+				}; use ${blue('--no-keep-name')} to opt back out when a wrapper script presets it.`,
 			),
 	)
 	.flag('sizes', sizesFlag())
@@ -111,7 +128,16 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 		// the shell happens to be in. Remote sources have no local directory to sit
 		// beside, so they fall back to the cwd.
 		const outDir = flags['out-dir'] ?? (isHttpUrl(input) ? cwd() : dirname(input));
-		const outputStem = flags.output.replace(/\.ico$/i, '');
+		// Two answers to the same question. A precedence rule here would be the
+		// kind nobody remembers, so say so instead of silently picking one.
+		if (flags.output !== undefined && flags['keep-name']) {
+			throw new CLIError('--output and --keep-name both name the ICO', {
+				code: 'OUTPUT_NAME_CONFLICT',
+				suggest: `Drop --keep-name to write '${flags.output}', or drop --output to derive the name from the source`,
+			});
+		}
+		const outputName = flags.output ?? (flags['keep-name'] ? `${inputStem(input)}.ico` : 'favicon.ico');
+		const outputStem = outputName.replace(/\.ico$/i, '');
 		const { color: c } = out;
 
 		await assertReadableSource(input);
@@ -137,7 +163,7 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 			out.status(`${c.green('Wrote')} ${linkedPath}${detail ? ` ${c.dim(detail)}` : ''}`);
 		}
 
-		const icoPath = resolve(outDir, flags.output);
+		const icoPath = resolve(outDir, outputName);
 		await writeAt(
 			icoPath,
 			icoBuffer,

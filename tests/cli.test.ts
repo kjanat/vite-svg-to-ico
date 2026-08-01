@@ -73,6 +73,75 @@ describe('CLI', () => {
 			expect((await Bun.file(join(dir, 'icons/favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
 		});
 
+		it('names the ICO favicon.ico regardless of the source name by default', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'logo.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(generate, [join(dir, 'logo.svg'), '--sizes', '16']);
+			expect(result.exitCode).toBe(0);
+			expect(await Bun.file(join(dir, 'favicon.ico')).exists()).toBe(true);
+			expect(await Bun.file(join(dir, 'logo.ico')).exists()).toBe(false);
+		});
+
+		it('--keep-name names the ICO after the source, per-size files included', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'logo.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(
+				generate,
+				[join(dir, 'logo.svg'), '--sizes', '16', '--keep-name', '--emit-sizes', 'both'],
+			);
+			expect(result.exitCode).toBe(0);
+			expect((await Bun.file(join(dir, 'logo.ico')).bytes()).byteLength).toBeGreaterThan(0);
+			expect(await Bun.file(join(dir, 'logo-16x16.png')).exists()).toBe(true);
+			expect(await Bun.file(join(dir, 'logo-16x16.ico')).exists()).toBe(true);
+			expect(await Bun.file(join(dir, 'favicon.ico')).exists()).toBe(false);
+		});
+
+		it('--keep-name derives from a URL basename for remote sources', async () => {
+			const dir = await setupTmp();
+			const svgBytes = await Bun.file(FIXTURE).bytes();
+			const stub = makeFetchStub(async () => new Response(svgBytes, { status: 200 }));
+
+			const result = await withStubbedFetch(stub, () =>
+				runCommand(generate, [
+					'https://example.test/brand/mark.svg?v=2',
+					'--out-dir',
+					dir,
+					'--sizes',
+					'16',
+					'--keep-name',
+				]));
+			expect(result.exitCode).toBe(0);
+			expect((await Bun.file(join(dir, 'mark.ico')).bytes()).byteLength).toBeGreaterThan(0);
+		});
+
+		it('refuses --output and --keep-name together rather than picking one', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'logo.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(generate, [join(dir, 'logo.svg'), '--keep-name', '-o', 'custom.ico']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('OUTPUT_NAME_CONFLICT');
+			expect(result.error?.suggest).toContain('custom.ico');
+			expect(await Bun.file(join(dir, 'custom.ico')).exists()).toBe(false);
+			expect(await Bun.file(join(dir, 'logo.ico')).exists()).toBe(false);
+		});
+
+		it('--no-keep-name reopens --output for callers that preset --keep-name', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'logo.svg'), await Bun.file(FIXTURE).text());
+
+			// The shape a wrapper script produces: preset flags first, per-call override after.
+			const result = await runCommand(
+				generate,
+				[join(dir, 'logo.svg'), '--keep-name', '--sizes', '16', '--no-keep-name', '-o', 'custom.ico'],
+			);
+			expect(result.exitCode).toBe(0);
+			expect((await Bun.file(join(dir, 'custom.ico')).bytes()).byteLength).toBeGreaterThan(0);
+			expect(await Bun.file(join(dir, 'logo.ico')).exists()).toBe(false);
+		});
+
 		it('lets an explicit --out-dir win over the source directory', async () => {
 			const dir = await setupTmp();
 			const src = join(dir, 'src');

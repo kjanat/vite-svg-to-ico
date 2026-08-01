@@ -221,6 +221,19 @@ above writes `public/favicon.ico`. Pass `--out-dir` to send them elsewhere;
 `http(s)://` sources have no local directory to sit beside and fall back to the
 current directory.
 
+The ICO is always named `favicon.ico` unless you say otherwise, because that is
+the name browsers request on their own. `--keep-name` names it after the source
+instead (`logo.svg` → `logo.ico`, and `--emit-sizes` follows the same stem),
+which is what you want when converting a set of icons rather than producing one
+favicon — the default would have every source collapse onto the same
+`favicon.ico`. A renamed ICO is no longer auto-requested, so it needs its own
+`<link>` tag. `--keep-name` and `--output` both name the file, so passing both
+is an error rather than a precedence puzzle.
+
+```sh
+for f in icons/*.svg; do svg-to-ico "$f" --keep-name; done
+```
+
 `<input>` is the **source image to rasterize**, not the ICO to create — the
 ICO filename comes from `--output` (default `favicon.ico`). Pointing `generate`
 at an ICO, a missing file, or a directory fails with a message naming the file
