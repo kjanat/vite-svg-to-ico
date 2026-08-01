@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--no-optimize` as the negated spelling of `--optimize`, rendered
   `--[no-]optimize` in help.
 
+### Changed (BREAKING)
+
+- `generate` now writes beside the source image when `--out-dir` is omitted, so
+  `svg-to-ico generate public/icon.svg` produces `public/favicon.ico` rather
+  than `./favicon.ico`. `http(s)://` sources have no local directory and keep
+  the current-directory fallback, and an explicit `--out-dir` is unaffected.
+  Scripts that relied on the old cwd default need `--out-dir .` added.
+  `--emit-source` now skips the copy when it would overwrite the source itself.
+
 ### Changed
 
 - Progress notes (`Wrote …`, `Rewrote …`, `Unchanged …`) moved from stdout to

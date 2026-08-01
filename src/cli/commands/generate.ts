@@ -1,12 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { cwd } from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { blue, green, red } from 'ansispeck';
 import { command, flag } from 'dreamcli';
 import { assertReadableSource, source } from '#cli/args/source';
 import { sizesFlag } from '#cli/flags/sizes';
 import { packIco } from '#ico';
-import { inputBasename, loadInputBytes } from '#loadInput';
+import { inputBasename, isHttpUrl, loadInputBytes } from '#loadInput';
 import { generateSizedPngs } from '#raster';
 
 /**
@@ -57,9 +58,10 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 		flag
 			.path()
 			.alias('d')
-			.default('.')
 			.describe(
-				'Directory to write outputs into. Relative paths resolve from the current working directory. Created if missing. Defaults to the current working directory.',
+				`Directory to write outputs into. Relative paths resolve from the current working directory. Created if missing. Defaults to the source image's own directory, so ${
+					blue('generate public/icon.svg')
+				} writes ${blue('public/favicon.ico')}; ${red('http(s)://')} sources fall back to the current directory.`,
 			),
 	)
 	.flag(
@@ -93,8 +95,8 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 			),
 	)
 	.example(
-		(meta) => green(`${meta.name} src/icon.svg`),
-		'Shorthand — no subcommand needed. Writes favicon.ico (16/32/48) to the current directory',
+		(meta) => green(`${meta.name} public/icon.svg`),
+		'Shorthand — no subcommand needed. Writes public/favicon.ico (16/32/48), beside the source',
 	)
 	.example(
 		(meta) => green(`${meta.name} generate src/icon.svg -d build -s16 -s32 -s48 --emit-sizes png --emit-source`),
@@ -107,7 +109,11 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 	.action(async ({ args, flags, out }) => {
 		const sizes = flags.sizes;
 		const input = args.input;
-		const outDir = flags['out-dir'];
+		// Unset --out-dir means "beside the source": `generate public/icon.svg` is
+		// asking for public/favicon.ico, not one in whatever directory the shell
+		// happens to be in. Remote sources have no local directory to sit beside,
+		// so they keep the cwd fallback.
+		const outDir = flags['out-dir'] ?? (isHttpUrl(input) ? cwd() : dirname(input));
 		const outputStem = flags.output.replace(/\.ico$/i, '');
 		const { color: c } = out;
 
@@ -143,7 +149,14 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 
 		if (flags['emit-source']) {
 			const sourcePath = resolve(outDir, inputBasename(input));
-			await writeAt(sourcePath, inputBuffer, '(source)');
+			// Writing beside the source makes the copy target the source itself.
+			// Rewriting a file with its own bytes gains nothing and risks truncating
+			// the original if the write is interrupted.
+			if (sourcePath === input) {
+				out.status(`${c.dim('Skipped')} ${c.cyan(sourcePath)} ${c.dim('(source copy is the source)')}`);
+			} else {
+				await writeAt(sourcePath, inputBuffer, '(source)');
+			}
 		}
 
 		const emitSizes = flags['emit-sizes'];

@@ -212,9 +212,14 @@ svg-to-ico inject build/index.html --sizes 16 --sizes 32 --sizes 48 --source ico
 these two are the same invocation:
 
 ```sh
-svg-to-ico src/icon.svg --out-dir public
-svg-to-ico generate src/icon.svg --out-dir public
+svg-to-ico public/icon.svg
+svg-to-ico generate public/icon.svg
 ```
+
+Without `--out-dir`, outputs land **beside the source image**, so the line
+above writes `public/favicon.ico`. Pass `--out-dir` to send them elsewhere;
+`http(s)://` sources have no local directory to sit beside and fall back to the
+current directory.
 
 `<input>` is the **source image to rasterize**, not the ICO to create — the
 ICO filename comes from `--output` (default `favicon.ico`). Pointing `generate`

@@ -38,25 +38,64 @@ async function withStubbedFetch<T>(stub: typeof globalThis.fetch, fn: () => Prom
 
 describe('CLI', () => {
 	describe('generate', () => {
-		it('documents the default out dir as the current directory, not a captured absolute path', async () => {
+		it('documents the derived out dir without capturing an absolute path', async () => {
 			const result = await runCommand(generate, ['--help']);
 			expect(result.exitCode).toBe(0);
 
 			const help = result.stdout.join('\n');
 			const flatHelp = help.replace(/\s+/g, ' ');
-			expect(flatHelp).toContain('Defaults to the current working directory. (default: .)');
-			expect(help).toContain('(default: .)');
+			expect(flatHelp).toContain("Defaults to the source image's own directory");
+			// The out-dir default is derived per input, so there is no resolved value
+			// to print — and never the absolute cwd of whoever rendered the help.
+			expect(flatHelp).not.toContain('back to the current directory. (default:');
 			expect(help).not.toContain(cwd());
 		});
 
-		it('writes to the invocation cwd by default', async () => {
+		it('writes beside the source image by default, not into the invocation cwd', async () => {
 			const dir = await setupTmp();
-			const result = await Bun.$`bun ${CLI_ENTRY} generate ${FIXTURE} --sizes 16`.cwd(dir).quiet().nothrow();
+			const assets = join(dir, 'assets');
+			await mkdir(assets, { recursive: true });
+			await Bun.write(join(assets, 'icon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await Bun.$`bun ${CLI_ENTRY} generate assets/icon.svg --sizes 16`.cwd(dir).quiet().nothrow();
 			expect(result.exitCode).toBe(0);
 
-			const ico = await Bun.file(join(dir, 'favicon.ico')).bytes();
-			expect(ico.byteLength).toBeGreaterThan(0);
-			expect(await Bun.file(join(dir, 'public/favicon.ico')).exists()).toBe(false);
+			expect((await Bun.file(join(assets, 'favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
+			expect(await Bun.file(join(dir, 'favicon.ico')).exists()).toBe(false);
+		});
+
+		it('resolves --output subdirectories against the derived out dir', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'icon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(generate, [join(dir, 'icon.svg'), '--sizes', '16', '-o', 'icons/favicon.ico']);
+			expect(result.exitCode).toBe(0);
+			expect((await Bun.file(join(dir, 'icons/favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
+		});
+
+		it('lets an explicit --out-dir win over the source directory', async () => {
+			const dir = await setupTmp();
+			const src = join(dir, 'src');
+			const build = join(dir, 'build');
+			await mkdir(src, { recursive: true });
+			await Bun.write(join(src, 'icon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(generate, [join(src, 'icon.svg'), '--out-dir', build, '--sizes', '16']);
+			expect(result.exitCode).toBe(0);
+			expect((await Bun.file(join(build, 'favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
+			expect(await Bun.file(join(src, 'favicon.ico')).exists()).toBe(false);
+		});
+
+		it('skips the source copy when --emit-source would overwrite the source itself', async () => {
+			const dir = await setupTmp();
+			const svg = join(dir, 'icon.svg');
+			const original = await Bun.file(FIXTURE).text();
+			await Bun.write(svg, original);
+
+			const result = await runCommand(generate, [svg, '--sizes', '16', '--emit-source']);
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr.join('\n')).toContain('source copy is the source');
+			expect(await Bun.file(svg).text()).toBe(original);
 		});
 
 		it('writes a multi-size favicon.ico to the out dir', async () => {
@@ -185,6 +224,25 @@ describe('CLI', () => {
 			expect(sourceCopy).toContain('<svg');
 		});
 
+		it('falls back to the cwd for a remote source, which has no local directory', async () => {
+			const dir = await setupTmp();
+			const svgBytes = await Bun.file(FIXTURE).bytes();
+			// A real server, not a fetch stub: the CLI runs in a subprocess here, so
+			// the cwd it resolves against has to be a real one too.
+			const server = Bun.serve({
+				port: 0,
+				fetch: () => new Response(svgBytes, { headers: { 'content-type': 'image/svg+xml' } }),
+			});
+			try {
+				const url = `http://localhost:${server.port}/remote.svg`;
+				const result = await Bun.$`bun ${CLI_ENTRY} generate ${url} --sizes 16`.cwd(dir).quiet().nothrow();
+				expect(result.exitCode).toBe(0);
+				expect((await Bun.file(join(dir, 'favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
+			} finally {
+				await server.stop(true);
+			}
+		});
+
 		it('accepts a file:// URL string as input', async () => {
 			const dir = await setupTmp();
 			const fileUrl = Bun.pathToFileURL(FIXTURE).toString();
@@ -303,7 +361,7 @@ describe('CLI', () => {
 			expect(help).toContain('generate (default)');
 			expect(help).toContain('inject');
 			// Examples resolve the real program name rather than hardcoding one.
-			expect(help).toContain('$ svg-to-ico src/icon.svg');
+			expect(help).toContain('$ svg-to-ico public/icon.svg');
 		});
 
 		it('keeps suggesting a real command for a near-miss typo', async () => {
