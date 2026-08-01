@@ -1,5 +1,5 @@
 { // git ls-remote "https://github.com/kjanat/kjanat.git" HEAD | awk '{print substr($1, 1, 8)}' | xargs -r -I{} sed -i -E 's#(github\.com/kjanat/kjanat/raw/)[0-9a-zA-Z]{4,40}(/configs/dprint\.remote\.json)#\1{}\2#g' .dprint.jsonc
-	"extends": "https://github.com/kjanat/kjanat/raw/7d87c3af/configs/dprint.remote.json",
+	"extends": "https://github.com/kjanat/kjanat/raw/1b7194bb/configs/dprint.remote.json",
 	"lineWidth": 120,
 	"typescript": { "module.sortImportDeclarations": "maintain", "module.sortExportDeclarations": "maintain" },
 	"malva": { "useTabs": false },

@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-08-01
+
+### Added
+
+- `generate` is now the CLI's **default command**, so `svg-to-ico src/icon.svg`
+  works without a subcommand. Previously, a bare path was rejected with
+  `Unknown command: src/icon.svg`. The explicit `svg-to-ico generate …` form
+  still routes and is listed in help.
+- Actionable diagnostics for a bad `generate` input, replacing raw
+  `Unexpected error: ENOENT`/`EISDIR` dumps. Each names the file you probably
+  meant and carries a stable error code:
+  - `INPUT_IS_ICO` — the input is an ICO (the format `generate` *writes*);
+    suggests the same-named source beside it and points at `--output`.
+  - `INPUT_NOT_FOUND` — suggests a sibling sharing the basename, otherwise
+    lists the supported images found in that directory.
+  - `INPUT_IS_DIRECTORY` — suggests an image inside the directory.
+- `--json` now emits a summary for both commands instead of nothing:
+  `generate` reports `{ input, ico, sizes, bytes, files }` and `inject` reports
+  `{ rewritten, files: [{ file, status }], generated }`, where `generated` lists
+  any assets `--generate-missing` wrote. Input diagnostics serialize as
+  `{ error: { code, message, suggest, details } }`.
+- `--no-optimize` as the negated spelling of `--optimize`, rendered
+  `--[no-]optimize` in help.
+- `inject --generate-missing`, which rasterizes any referenced favicon that is
+  not on disk from `--source` and writes it into `--asset-dir`. Without it, a
+  missing file is still injected as an href and 404s at run time — `inject`
+  never checked existence on the non-embed path. Existing files are left
+  untouched, and a multi-file run rasterizes each target once.
+- `inject --embed` now rasterizes a missing target from `--source` instead of
+  failing. Under `--embed` the href carries the image itself, so nothing has to
+  exist at the referenced path — the previous `EMBED_READ` error was demanding
+  a file the output never points at. Bytes are produced in memory and no image
+  is written; a file on disk still wins, and the error stands when there is no
+  usable `--source`. `sharp` loads through a dynamic import, so a plain
+  `inject` run does not pay for the native module.
+- `inject --png-sizes`, which injects a per-size
+  `<link rel="icon" type="image/png" sizes="NxN">` for each size given. The
+  plugin could already emit these through a `{ format: 'png', inject }` spec,
+  but the CLI built only ICO and SVG specs, so files written by
+  `generate --emit-sizes png` had no way to be referenced from HTML. Filenames
+  derive from `--output` on both sides, so `-o logo.ico` yields
+  `logo-192x192.png` in the files and in the hrefs; `--embed` inlines the PNG
+  bytes as `data:` URIs like the ICO.
+- `generate --keep-name`, which names the ICO after the source image
+  (`logo.svg` -> `logo.ico`, with `--emit-sizes` following the same stem)
+  instead of the `favicon.ico` default. Intended for converting a set of icons,
+  where the default collapses every source onto one filename; a renamed ICO is
+  no longer auto-requested by browsers and needs its own `<link>` tag. Passing
+  it together with `--output` is an error rather than a silent precedence rule,
+  and `--no-keep-name` opts back out when a wrapper script presets it.
+
+### Changed (BREAKING)
+
+- `generate` now writes beside the source image when `--out-dir` is omitted, so
+  `svg-to-ico generate public/icon.svg` produces `public/favicon.ico` rather
+  than `./favicon.ico`. `http(s)://` sources have no local directory and keep
+  the current-directory fallback, and an explicit `--out-dir` is unaffected.
+  Scripts that relied on the old cwd default need `--out-dir .` added.
+  `--emit-source` now skips the copy when it would overwrite the source itself.
+
+### Changed
+
+- Injected `<link>` tags now copy the document's own whitespace instead of a
+  hardcoded four-space indent: tags take the indentation of the last populated
+  line in `<head>`, `</head>` keeps its own, and the line ending is preserved.
+  A `</head>` that does not start its own line is treated as minified and gets
+  no whitespace at all, so single-line documents stay single-line. Two-space
+  documents render as before.
+- Progress notes (`Wrote …`, `Rewrote …`, `Unchanged …`) moved from stdout to
+  stderr as DreamCLI status lines. Stdout is now clean for piping, and the
+  advertised `--quiet`/`-q` flag actually silences them — before, it had no
+  effect on either command.
+- Help examples resolve the invoked program name at render time, so they read
+  `$ svg-to-ico generate src/icon.svg` rather than a bare `$ generate …`, which
+  looked like the binary was named `generate`.
+- `--output` (both commands) and `--source` (`inject`) reject the empty string
+  at parse time rather than producing a file named after the extension alone.
+- Upgrade `@kjanat/dreamcli` from `^3.0.0-rc.9` to `^3.0.1` and `ansispeck`
+  from `^0.1.2` to `^0.4.1`.
+
 ## [4.1.0] - 2026-07-15
 
 ### Added
@@ -590,7 +670,8 @@ svgToIco({
 - Full TypeScript type exports
   (`PluginOptions`, `IconSize`, `IncludeSourceOptions`).
 
-[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/kjanat/vite-svg-to-ico/compare/v5.0.0...HEAD
+[5.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v4.1.0...v5.0.0
 [4.1.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.6...v4.0.0
 [3.1.6]: https://github.com/kjanat/vite-svg-to-ico/compare/v3.1.5...v3.1.6

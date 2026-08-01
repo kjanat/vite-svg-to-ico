@@ -1,12 +1,14 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { cwd } from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { blue, green, red } from 'ansispeck';
-import { command, flag } from 'dreamcli';
-import { source } from '#cli/args/source';
+import { blue, green, red } from 'ansispeck/safe';
+import { CLIError, command, flag } from 'dreamcli';
+import { assertReadableSource, source } from '#cli/args/source';
+import { DEFAULT_ICO_FILENAME, icoStem, outputFlag } from '#cli/flags/output';
 import { sizesFlag } from '#cli/flags/sizes';
 import { packIco } from '#ico';
-import { inputBasename, loadInputBytes } from '#loadInput';
+import { inputBasename, inputStem, isHttpUrl, loadInputBytes } from '#loadInput';
 import { generateSizedPngs } from '#raster';
 
 /**
@@ -22,32 +24,39 @@ export const generate = command('generate')
 		`\
 Rasterize a source image into a multi-size ICO favicon. \
 Optionally also emit per-size PNG/ICO files and a copy of the original source. \
-Equivalent to what the Vite plugin emits during ${blue('vite build')}, but runs standalone.`,
+Equivalent to what the Vite plugin emits during ${blue`vite build`}, but runs standalone.`,
 	)
 	.arg(
 		'input',
 		source().describe(
 			`\
-Path, ${red('file://')} URL, or ${red('http(s)://')} URL to source image. \
-Paths and ${red('file://')} URLs are resolved to absolute; \
-${red('http(s)://')} URLs are fetched at run time. \
-Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${blue('.jpg')}/${blue('.jpeg')}, ${
-				blue(
-					'.webp',
-				)
-			}, ${blue('.avif')}, ${blue('.gif')}, ${blue('.tif')}/${blue('.tiff')}.`,
+Path, ${red`file://`} URL, or ${red`http(s)://`} URL to source image. \
+Paths and ${red`file://`} URLs are resolved to absolute; \
+${red`http(s)://`} URLs are fetched at run time. \
+Sharp-supported formats: ${blue`.svg`}, ${blue`.svgz`}, ${blue`.png`}, ${blue`.jpg`}/${blue`.jpeg`}, \
+${blue`.webp`}, ${blue`.avif`}, ${blue`.gif`}, ${blue`.tif`}/${blue`.tiff`}.`,
 		),
 	)
 	.flag(
 		'output',
+		// The `(default: …)` suffix is hand-written because the flag carries no
+		// `.default()`; see kjanat/dreamcli#88 and #89.
+		outputFlag().describe(
+			`Filename for the combined ICO (relative to ${blue`--out-dir`}). \
+May include subdirectories; they are created as needed. (default: ${DEFAULT_ICO_FILENAME})`,
+		),
+	)
+	.flag(
+		'keep-name',
 		flag
-			.string()
-			.alias('o')
-			.default('favicon.ico')
+			.boolean()
+			.default(false)
+			.negatable()
 			.describe(
-				`Filename for the combined ICO (relative to ${
-					blue('--out-dir')
-				}). May include subdirectories; they are created as needed.`,
+				`Name the ICO after the source image — ${blue`icon.svg`} yields ${blue`icon.ico`} \
+instead of ${blue`${DEFAULT_ICO_FILENAME}`}, and ${blue`--emit-sizes`} follows the same stem. \
+Browsers only auto-request ${DEFAULT_ICO_FILENAME}, so a renamed ICO needs its own <link> tag. \
+Conflicts with ${blue`--output`}; use ${blue`--no-keep-name`} to opt back out when a wrapper script presets it.`,
 			),
 	)
 	.flag('sizes', sizesFlag())
@@ -56,9 +65,10 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 		flag
 			.path()
 			.alias('d')
-			.default('.')
 			.describe(
-				'Directory to write outputs into. Relative paths resolve from the current working directory. Created if missing. Defaults to the current working directory.',
+				`Directory to write outputs into. Relative paths resolve from the current working directory. \
+Created if missing. Defaults to the source image's own directory; \
+${red`http(s)://`} sources fall back to the current directory.`,
 			),
 	)
 	.flag(
@@ -67,9 +77,8 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 			.enum(['none', 'png', 'ico', 'both'])
 			.default('none')
 			.describe(
-				`Emit per-size files alongside the combined ICO: ${red('png')} (favicon-NxN.png), ${
-					red('ico')
-				} (favicon-NxN.ico), ${red('both')}, or ${red('none')}.`,
+				`Emit per-size files alongside the combined ICO: ${red`png`} (favicon-NxN.png), \
+${red`ico`} (favicon-NxN.ico), ${red`both`}, or ${red`none`}.`,
 			),
 	)
 	.flag(
@@ -77,35 +86,45 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 		flag
 			.boolean()
 			.default(false)
-			.describe(`Copy the original source image into ${blue('--out-dir')} (preserves its original basename).`),
+			.describe(`Copy the original source image into ${blue`--out-dir`} (preserves its original basename).`),
 	)
 	.flag(
 		'optimize',
 		flag
 			.boolean()
 			.default(true)
+			.negatable()
 			.describe(
-				`Apply max PNG compression (level 9 + adaptive filtering). Disable with ${blue('--optimize')}=${
-					red('false')
-				} for faster builds at the cost of larger files.`,
+				'Apply max PNG compression (level 9 + adaptive filtering). Disabling it builds faster at the cost of larger files.',
 			),
 	)
-	.example(green('generate src/icon.svg'), 'Write favicon.ico (16/32/48) to the current directory.')
 	.example(
-		green('generate src/icon.svg -d build -s16 -s32 -s48 --emit-sizes png --emit-source'),
-		'Generate ICO + per-size PNGs + copy of source into build/.',
+		(meta) => green`${meta.name} public/icon.svg`,
+		'Write public/favicon.ico (16/32/48) beside the source',
 	)
 	.example(
-		green('generate src/icon.png -s64 -s128 -s256 -o icons/favicon.ico'),
-		'PNG input, custom sizes, nested output path.',
+		(meta) => green`${meta.name} generate src/icon.svg -d build -s16 -s32 -s48 --emit-sizes png --emit-source`,
+		'Generate ICO + per-size PNGs + copy of source into build/',
+	)
+	.example(
+		(meta) => green`${meta.name} generate src/icon.png -s64 -s128 -s256 -o icons/favicon.ico`,
+		'PNG input, custom sizes, nested output path',
 	)
 	.action(async ({ args, flags, out }) => {
 		const sizes = flags.sizes;
 		const input = args.input;
-		const outDir = flags['out-dir'];
-		const outputStem = flags.output.replace(/\.ico$/i, '');
+		const outDir = flags['out-dir'] ?? (isHttpUrl(input) ? cwd() : dirname(input));
+		if (flags.output !== undefined && flags['keep-name']) {
+			throw new CLIError('--output and --keep-name both name the ICO', {
+				code: 'OUTPUT_NAME_CONFLICT',
+				suggest: `Drop --keep-name to write '${flags.output}', or drop --output to derive the name from the source`,
+			});
+		}
+		const outputName = flags.output ?? (flags['keep-name'] ? `${inputStem(input)}.ico` : DEFAULT_ICO_FILENAME);
+		const outputStem = icoStem(outputName);
 		const { color: c } = out;
 
+		await assertReadableSource(input);
 		const inputBuffer = await loadInputBytes(input);
 		const pngs = await generateSizedPngs(inputBuffer, {
 			sizes,
@@ -115,14 +134,17 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 
 		await mkdir(outDir, { recursive: true });
 
+		const written: string[] = [];
+
 		async function writeAt(targetPath: string, data: Buffer | string, detail?: string) {
 			await mkdir(dirname(targetPath), { recursive: true });
 			await writeFile(targetPath, data);
+			written.push(targetPath);
 			const linkedPath = c.link(pathToFileURL(targetPath), c.cyan(targetPath));
-			out.log(`${c.green('Wrote')} ${linkedPath}${detail ? ` ${c.dim(detail)}` : ''}`);
+			out.status(`${c.green('Wrote')} ${linkedPath}${detail ? ` ${c.dim(detail)}` : ''}`);
 		}
 
-		const icoPath = resolve(outDir, flags.output);
+		const icoPath = resolve(outDir, outputName);
 		await writeAt(
 			icoPath,
 			icoBuffer,
@@ -131,7 +153,11 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 
 		if (flags['emit-source']) {
 			const sourcePath = resolve(outDir, inputBasename(input));
-			await writeAt(sourcePath, inputBuffer, '(source)');
+			if (sourcePath === input) {
+				out.status(`${c.dim('Skipped')} ${c.cyan(sourcePath)} ${c.dim('(source already in the output directory)')}`);
+			} else {
+				await writeAt(sourcePath, inputBuffer, '(source)');
+			}
 		}
 
 		const emitSizes = flags['emit-sizes'];
@@ -147,4 +173,6 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 				}
 			}
 		}
+
+		if (out.jsonMode) out.json({ input, ico: icoPath, sizes, bytes: icoBuffer.length, files: written });
 	});

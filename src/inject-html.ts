@@ -26,20 +26,54 @@ export function renderTag(tag: HtmlTagDescriptor): string {
 	return `${open}${children}</${tag.tag}>`;
 }
 
+/** Leading whitespace of `line`, or `undefined` when the line is blank. */
+function indentOf(line: string): string | undefined {
+	if (line.trim() === '') return undefined;
+	return /^[ \t]*/.exec(line)?.[0] ?? '';
+}
+
+/**
+ * Indentation to give injected tags, copied from the last populated line inside
+ * `<head>`. Falls back to one step past the closing tag's own indent, in the
+ * document's own whitespace character.
+ */
+function siblingIndent(head: string, closeIndent: string): string {
+	const open = /<head\b[^>]*>/i.exec(head);
+	const body = open ? head.slice(open.index + open[0].length) : head;
+	for (const line of body.split(/\r?\n/).reverse()) {
+		const indent = indentOf(line);
+		if (indent !== undefined) return indent;
+	}
+	return closeIndent + (closeIndent.includes('\t') ? '\t' : '  ');
+}
+
 /**
  * Inject favicon `<link>` tags into an HTML document string.
  *
  * Strips any existing `icon` / `shortcut icon` links (preserving `apple-touch-icon`)
  * and inserts the new tags before `</head>`. If no `</head>` is present, tags are
  * appended at the end of the document.
+ *
+ * Whitespace is copied from the document rather than imposed: tags take the
+ * indentation of the last populated line in `<head>`, `</head>` keeps its own,
+ * and the document's line ending is reused. A `</head>` that does not start its
+ * own line is treated as minified and gets no whitespace at all, so single-line
+ * documents stay single-line.
  */
 export function injectTagsIntoHtml(html: string, tags: HtmlTagDescriptor[]): string {
 	const cleaned = html.replace(INJECT_ICON_LINK_RE, '');
-	const rendered = tags.map(renderTag).join('\n    ');
-	const headCloseRe = /<\/head>/i;
-	const match = cleaned.match(headCloseRe);
-	if (match) {
-		return cleaned.replace(headCloseRe, `    ${rendered}\n  ${match[0]}`);
-	}
-	return `${cleaned}\n${rendered}`;
+	const match = /<\/head>/i.exec(cleaned);
+	if (!match) return `${cleaned}\n${tags.map(renderTag).join('\n')}`;
+
+	const before = cleaned.slice(0, match.index);
+	const lineStart = /(\r?\n)([ \t]*)$/.exec(before);
+	if (!lineStart) return `${before}${tags.map(renderTag).join('')}${cleaned.slice(match.index)}`;
+
+	const eol = lineStart[1] ?? '\n';
+	const closeIndent = lineStart[2] ?? '';
+	const tagIndent = siblingIndent(before, closeIndent);
+	const rendered = tags.map(renderTag).join(`${eol}${tagIndent}`);
+	return `${cleaned.slice(0, lineStart.index)}${eol}${tagIndent}${rendered}${eol}${closeIndent}${
+		cleaned.slice(match.index)
+	}`;
 }

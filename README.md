@@ -208,6 +208,90 @@ svg-to-ico generate src/icon.svg --out-dir build --sizes 16 --sizes 32 --sizes 4
 svg-to-ico inject build/index.html --sizes 16 --sizes 32 --sizes 48 --source icon.svg
 ```
 
+`inject` writes no images — it rewrites HTML and expects the files to exist
+already. `--png-sizes` links the per-size PNGs that `generate --emit-sizes png`
+produced, giving `<link rel="icon" type="image/png" sizes="192x192">` alongside
+the combined ICO:
+
+```sh
+svg-to-ico generate src/icon.svg -d build -s 192 -s 512 --emit-sizes png
+svg-to-ico inject build/index.html --png-sizes 192 --png-sizes 512
+```
+
+Both sides derive the per-size filenames from `--output`, so `-o logo.ico`
+yields `logo-192x192.png` in the files and in the hrefs. Under `--embed` the
+PNG bytes are inlined as `data:` URIs like the ICO.
+
+With `--embed` the href carries the image, so nothing needs to exist at the
+referenced path. If a target is missing, it is rasterized from `--source` in
+memory — no image is written to disk, and one HTML rewrite covers the whole
+favicon set:
+
+```sh
+svg-to-ico inject dist/index.html --source favicon.svg --png-sizes 192 --embed
+```
+
+A file already on disk still wins; the run only fails if there is no usable
+`--source` to fall back to.
+
+Without `--embed` the href points at a real path, so the file has to exist —
+`inject` does not check, and a missing one 404s at run time. `--generate-missing`
+rasterizes and writes whatever is absent, making a single `inject` call produce
+the whole favicon set:
+
+```sh
+svg-to-ico inject dist/index.html --source favicon.svg --png-sizes 192 --generate-missing
+```
+
+Injected tags copy the document's own indentation — tabs stay tabs, and a
+minified single-line document gains no whitespace.
+
+`generate` is the default command, so the common case needs no subcommand —
+these two are the same invocation:
+
+```sh
+svg-to-ico public/icon.svg
+svg-to-ico generate public/icon.svg
+```
+
+Without `--out-dir`, outputs land **beside the source image**, so the line
+above writes `public/favicon.ico`. Pass `--out-dir` to send them elsewhere;
+`http(s)://` sources have no local directory to sit beside and fall back to the
+current directory.
+
+The ICO is always named `favicon.ico` unless you say otherwise, because that is
+the name browsers request on their own. `--keep-name` names it after the source
+instead (`logo.svg` → `logo.ico`, and `--emit-sizes` follows the same stem),
+which is what you want when converting a set of icons rather than producing one
+favicon — the default would have every source collapse onto the same
+`favicon.ico`. A renamed ICO is no longer auto-requested, so it needs its own
+`<link>` tag. `--keep-name` and `--output` both name the file, so passing both
+is an error rather than a precedence puzzle.
+
+```sh
+for f in icons/*.svg; do svg-to-ico "$f" --keep-name; done
+```
+
+`<input>` is the **source image to rasterize**, not the ICO to create — the
+ICO filename comes from `--output` (default `favicon.ico`). Pointing `generate`
+at an ICO, a missing file, or a directory fails with a message naming the file
+you probably meant:
+
+```console
+$ svg-to-ico public/favicon.ico
+Cannot read public/favicon.ico: ICO is an output format, not a source image
+Suggestion: Did you mean 'public/favicon.svg'? The ICO filename comes from --output (default favicon.ico)
+```
+
+Both commands write their progress notes (`Wrote …`, `Rewrote …`) to stderr, so
+stdout stays clean for piping: `--quiet`/`-q` silences them, and `--json` puts a
+machine-readable summary — or a structured `{ error: { code, suggest } }` — on
+stdout instead.
+
+```sh
+svg-to-ico public/icon.svg --json | jq -r '.files[]'
+```
+
 Run `svg-to-ico --help` for the full surface.
 
 ### Override sharp options

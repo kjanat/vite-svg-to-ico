@@ -23,7 +23,9 @@
  * ## Subcommands
  *
  * - `generate <input>` — rasterize an image to a multi-size ICO (and
- *   optionally per-size PNGs/ICOs + a copy of the source) on disk.
+ *   optionally per-size PNGs/ICOs + a copy of the source) on disk. The default
+ *   command: `svg-to-ico public/icon.svg` and `svg-to-ico generate
+ *   public/icon.svg` are the same invocation.
  * - `inject <files...>` — rewrite existing HTML files: strip
  *   `<link rel="icon">`/`<link rel="shortcut icon">` tags, splice the
  *   configured favicon tag set before `</head>`, preserve `apple-touch-icon`.
@@ -33,6 +35,9 @@
  * # SvelteKit adapter-static, wired into package.json scripts:
  * #   "build": "vite build && svg-to-ico inject build/index.html build/404.html -s 16 -s 32 -s 48 --source favicon.svg"
  *
+ * # Write public/favicon.ico beside the source:
+ * svg-to-ico public/icon.svg
+ *
  * # Generate a 16/32/48 ICO + per-size PNGs alongside it:
  * svg-to-ico generate src/icon.svg --out-dir build -s 16 -s 32 -s 48 --emit-sizes png --emit-source
  *
@@ -41,7 +46,7 @@
  * ```
  */
 
-import { blue } from 'ansispeck';
+import { blue } from 'ansispeck/safe';
 import { cli } from 'dreamcli';
 import { generate } from '#cli/commands/generate';
 import { inject } from '#cli/commands/inject';
@@ -49,12 +54,17 @@ import { inject } from '#cli/commands/inject';
 /**
  * Top-level `svg-to-ico` CLI: bundles {@link generate} and {@link inject}
  * subcommands plus shell-completion generation.
+ *
+ * {@link generate} is the default command: the one-off "turn this image into a
+ * favicon" case is what most invocations want, so it needs no subcommand.
+ * `{ route: true }` keeps the explicit name dispatchable and listed in help,
+ * so both spellings work.
  */
 export const app = cli('svg-to-ico')
 	.manifest({ from: import.meta.url })
 	.links()
-	.description(`Generate ICO favicons and inject ${blue('<link>')} tags into HTML files`)
-	.command(generate)
+	.description(`Generate ICO favicons and inject ${blue`<link>`} tags into HTML files`)
+	.default(generate, { route: true })
 	.command(inject)
 	.completions();
 

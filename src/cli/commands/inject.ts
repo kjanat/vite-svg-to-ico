@@ -1,13 +1,14 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { blue, green, red } from 'ansispeck';
+import { blue, green, red } from 'ansispeck/safe';
 import { arg, CLIError, command, flag } from 'dreamcli';
-import { sizesFlag } from '#cli/flags/sizes';
+import { DEFAULT_ICO_FILENAME, icoStem, outputFlag } from '#cli/flags/output';
+import { pngSizesFlag, sizesFlag } from '#cli/flags/sizes';
 import { toDataUri } from '#dataUri';
 import { buildFaviconTags, type TagContext } from '#faviconTags';
 import { injectTagsIntoHtml } from '#injectHtml';
-import { resolveSpecs } from '#resolveSpecs';
+import { type ResolvedInjection, resolveSpecs } from '#resolveSpecs';
 import type { EmitSpec } from '#types';
 import { DATA_URI_ENCODINGS } from '#types';
 
@@ -22,10 +23,9 @@ export const inject = command('inject')
 	.description(
 		`\
 Rewrite existing HTML files on disk: \
-strip ${blue('<link rel="') + red('icon') + blue('">')} and ${
-			blue('<link rel="') + red('shortcut icon') + blue('">')
-		} tags (preserves ${red('apple-touch-icon')}), \
-splice in the configured favicon tag set before ${blue('</head>')}, and write back. \
+strip ${blue`<link rel="${red`icon`}">`} and ${blue`<link rel="${red`shortcut icon`}">`} \
+tags (preserves ${red`apple-touch-icon`}), \
+splice in the configured favicon tag set before ${blue`</head>`}, and write back. \
 The ICO/SVG files themselves are expected to already exist at the configured paths.`,
 	)
 	.arg(
@@ -39,36 +39,33 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 	)
 	.flag(
 		'output',
-		flag
-			.string()
-			.alias('o')
-			.default('favicon.ico')
+		outputFlag()
+			.default(DEFAULT_ICO_FILENAME)
 			.describe(
-				`ICO filename referenced in the injected ${blue('<link>')} (matches ${blue('generate')}'s ${
-					blue('--output')
-				}).`,
+				`ICO filename referenced in the injected ${blue`<link>`} \
+(matches ${blue`generate`}'s ${blue`--output`}).`,
 			),
 	)
 	.flag('sizes', sizesFlag())
+	.flag('png-sizes', pngSizesFlag())
 	.flag(
 		'base',
 		flag
 			.string()
 			.default('/')
 			.describe(
-				`URL base prefix for hrefs (matches Vite's ${blue('base')} config). Trailing slash is optional; ${
-					blue('--base /app')
-				} and ${blue('--base /app/')} both yield ${red('/app/favicon.ico')}.`,
+				`URL base prefix for hrefs (matches Vite's ${blue`base`} config). Trailing slash is optional; \
+${blue`--base /app`} and ${blue`--base /app/`} both yield ${red`/app/${DEFAULT_ICO_FILENAME}`}.`,
 			),
 	)
 	.flag(
 		'source',
 		flag
 			.string()
+			.nonEmpty()
 			.describe(
-				`Filename of the source file (e.g. ${blue('favicon.svg')}). When set, an additional ${
-					blue('<link rel="') + red('icon') + blue('" type="') + red('image/svg+xml') + blue('">')
-				} tag is injected.`,
+				`Filename of the source file (e.g. ${blue`favicon.svg`}). When set, an additional \
+${blue`<link rel="${red`icon`}" type="${red`image/svg+xml`}">`} tag is injected.`,
 			),
 	)
 	.flag(
@@ -77,9 +74,19 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			.enum(['svg', 'png', 'jpg', 'webp', 'avif', 'gif', 'tiff'])
 			.default('svg')
 			.describe(
-				`Format of ${blue('--source')} for the MIME type attribute. Only ${red('svg')} triggers the SVG ${
-					blue('<link>')
-				}; other values are accepted but currently inert in tag generation.`,
+				`Format of ${blue`--source`} for the MIME type attribute. Only ${red`svg`} triggers the SVG \
+${blue`<link>`}; other values are accepted but currently inert in tag generation.`,
+			),
+	)
+	.flag(
+		'generate-missing',
+		flag
+			.boolean()
+			.default(false)
+			.describe(
+				`Rasterize any referenced favicon that is not on disk from ${blue`--source`} and write it into \
+${blue`--asset-dir`}. Without this, a missing file is injected as an href anyway and 404s at run time. \
+Files already present are left alone.`,
 			),
 	)
 	.flag(
@@ -88,9 +95,8 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			.boolean()
 			.default(false)
 			.describe(
-				`Inline the favicon bytes as ${blue('data:')} URIs instead of URL hrefs — the ${
-					blue('<link>')
-				} carries the image itself, no file reference. Reads the referenced files from ${blue('--asset-dir')}.`,
+				`Inline the favicon bytes as ${blue`data:`} URIs instead of URL hrefs — the ${blue`<link>`} \
+carries the image itself, no file reference. Reads the referenced files from ${blue`--asset-dir`}.`,
 			),
 	)
 	.flag(
@@ -99,65 +105,195 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			.enum(DATA_URI_ENCODINGS)
 			.default('base64')
 			.describe(
-				`Encoding for an embedded SVG ${blue('--source')}: ${red('base64')} or ${
-					red('utf8')
-				} (smaller, human-readable). Binary ICO is always ${red('base64')}. Only applies with ${blue('--embed')}.`,
+				`Encoding for an embedded SVG ${blue`--source`}: ${red`base64`} or ${red`utf8`} \
+(smaller, human-readable). Binary ICO is always ${red`base64`}. Only applies with ${blue`--embed`}.`,
 			),
 	)
 	.flag(
 		'asset-dir',
 		flag.path().describe(
-			`Directory to read favicon files from when ${
-				blue('--embed')
-			} is set. Defaults to each HTML file's own directory.`,
+			`Directory favicon files are read from when ${blue`--embed`} is set, and written to when \
+${blue`--generate-missing`} is set. Defaults to each HTML file's own directory.`,
 		),
 	)
-	.example(green('inject build/index.html'), 'Inject default favicon.ico tag (16/32/48) into a single file.')
 	.example(
-		green('inject build/index.html build/404.html -s16 -s32 -s48 --source favicon.svg'),
-		`Multi-file rewrite, also injects SVG source ${blue('<link>')}.`,
+		(meta) => green`${meta.name} inject build/index.html`,
+		'Inject default favicon.ico tag (16/32/48) into a single file',
 	)
 	.example(
-		green('inject dist/index.html --base /repo/'),
-		'Inject under a subpath base (e.g. GitHub Pages project site).',
+		(meta) => green`${meta.name} inject build/index.html build/404.html -s16 -s32 -s48 --source favicon.svg`,
+		`Multi-file rewrite, also injects SVG source ${blue`<link>`}`,
 	)
 	.example(
-		green('inject dist/index.html --source favicon.svg --embed --encoding utf8'),
-		'Inline the ICO + SVG straight into the HTML as data: URIs (no file references).',
+		(meta) => green`${meta.name} inject dist/index.html --base /repo/`,
+		'Inject under a subpath base (e.g. GitHub Pages project site)',
+	)
+	.example(
+		(meta) => green`${meta.name} inject dist/index.html --source favicon.svg --embed --encoding utf8`,
+		'Inline the ICO + SVG straight into the HTML as data: URIs (no file references)',
 	)
 	.action(async ({ args, flags, out }) => {
-		const { color: c, log, warn } = out;
+		const { color: c, status, warn } = out;
 		const files = args.files;
 		if (files.length === 0) {
 			throw new CLIError('At least one HTML file path is required', { code: 'MISSING_FILES' });
 		}
 		const sourceName = flags.source;
-		// Build the same spec model the plugin uses, then resolve to injections.
+		const pngSizes = flags['png-sizes'];
 		const specs: EmitSpec[] = [{ format: 'ico', sizes: flags.sizes, filename: flags.output, inject: true }];
+		if (pngSizes.length > 0) {
+			specs.push({
+				format: 'png',
+				sizes: pngSizes,
+				// Same stem generate hangs its per-size files off, so a custom
+				// --output keeps both sides pointing at one filename.
+				filenameTemplate: `${icoStem(flags.output)}-{size}x{size}.png`,
+				inject: true,
+			});
+		}
 		if (sourceName) specs.push({ format: 'svg', filename: sourceName, inject: true });
 		const { injections } = resolveSpecs(specs, { inputFormat: flags['input-format'] });
 
 		/**
+		 * Bytes for an embed target that is not on disk, rasterized from `--source`.
+		 *
+		 * Only reachable under `--embed`, where the href carries the image itself,
+		 * so nothing has to exist at the referenced path — the file the tag names
+		 * is never fetched. Returns `undefined` when there is no usable source,
+		 * leaving the caller to report the original read failure.
+		 *
+		 * `sharp` loads through a dynamic import so a plain `inject` run, which
+		 * rasterizes nothing, does not pay for the native module.
+		 */
+		/** Why the last rasterize attempt failed, carried into the caller's error details. */
+		let rasterizeFailure: string | undefined;
+
+		async function rasterizeFor(inj: ResolvedInjection, assetDir: string): Promise<Buffer | undefined> {
+			// Cleared per attempt so a caller never reports an earlier target's failure.
+			rasterizeFailure = undefined;
+			if (sourceName === undefined) return undefined;
+			let sourceBytes: Buffer;
+			try {
+				sourceBytes = await readFile(resolve(assetDir, sourceName));
+			} catch {
+				return undefined;
+			}
+			if (inj.type === 'image/svg+xml') return sourceBytes;
+
+			// A corrupt or unsupported source makes sharp throw. Catching here keeps
+			// the callers' diagnostics in play instead of surfacing a native error.
+			try {
+				const { generateSizedPngs } = await import('#raster');
+				if (inj.type === 'image/x-icon') {
+					const { packIco } = await import('#ico');
+					return packIco(await generateSizedPngs(sourceBytes, { sizes: flags.sizes, optimize: true }));
+				}
+				if (inj.type === 'image/png') {
+					const size = Number.parseInt(inj.sizes ?? '', 10);
+					if (!Number.isInteger(size)) return undefined;
+					const [png] = await generateSizedPngs(sourceBytes, { sizes: [size], optimize: true });
+					return png?.buffer;
+				}
+				return undefined;
+			} catch (e) {
+				rasterizeFailure = (e as Error).message;
+				return undefined;
+			}
+		}
+
+		/** Targets already checked, so a multi-file run rasterizes each once. */
+		const ensured = new Set<string>();
+		/** Assets `--generate-missing` created, reported alongside the HTML results. */
+		const generated: string[] = [];
+
+		/**
+		 * Write any referenced favicon that is missing from `assetDir`, rasterized
+		 * from `--source`. Unlike the embed path this leaves real files behind,
+		 * because the injected href points at them.
+		 */
+		async function writeMissingInto(assetDir: string) {
+			for (const inj of injections) {
+				if (inj.href.kind !== 'file') continue;
+				const path = resolve(assetDir, inj.href.filename);
+				if (ensured.has(path)) continue;
+				ensured.add(path);
+
+				// Only a regular file counts as already present. A directory sitting on
+				// the path would otherwise be taken for the favicon and injected as a
+				// dead href, and a stat failure other than ENOENT is not "missing".
+				const filename = inj.href.filename;
+				const existing = await stat(path).catch((e: NodeJS.ErrnoException) => {
+					if (e.code === 'ENOENT') return undefined;
+					throw new CLIError(
+						`${c.red('inject --generate-missing:')} cannot inspect "${filename}": ${e.message}`,
+						{ code: 'GENERATE_MISSING', details: { filename, path } },
+					);
+				});
+				if (existing?.isFile()) continue;
+				if (existing !== undefined) {
+					throw new CLIError(
+						`${c.red('inject --generate-missing:')} "${filename}" exists but is not a regular file`,
+						{
+							code: 'GENERATE_MISSING',
+							details: { filename, path },
+							suggest: `Remove ${path}, or point --output elsewhere`,
+						},
+					);
+				}
+
+				const bytes = await rasterizeFor(inj, assetDir);
+				if (!bytes) {
+					throw new CLIError(
+						`${c.red('inject --generate-missing:')} cannot produce "${inj.href.filename}"`,
+						{
+							code: 'GENERATE_MISSING',
+							details: { filename: inj.href.filename, source: sourceName, reason: rasterizeFailure },
+							suggest: sourceName === undefined
+								? 'Pass --source <image> to rasterize missing favicons from'
+								: `Check that "${sourceName}" exists in ${assetDir} and is a supported image`,
+						},
+					);
+				}
+				await mkdir(dirname(path), { recursive: true });
+				await writeFile(path, bytes);
+				generated.push(path);
+				status(`${c.green('Wrote')} ${c.link(pathToFileURL(path), c.cyan(path))} ${c.dim(`(from ${sourceName})`)}`);
+			}
+		}
+
+		/**
 		 * Read the favicon files an embed run needs (ICO, plus the SVG source if
 		 * set) from `assetDir`, returning a {@link TagContext} embed resolver that
-		 * inlines them by filename. Throws a clear error if a referenced file is missing.
+		 * inlines them by filename. Missing files fall back to {@link rasterizeFor};
+		 * anything still unresolved throws.
 		 */
 		async function embedResolverFor(assetDir: string): Promise<NonNullable<TagContext['embed']>> {
-			// Read exactly the files the resolved injections reference — not whatever
-			// `--source` implies. resolveSpecs() may drop an inert tag (e.g. an SVG
-			// source under `--input-format png`), and reading its file would fail for
-			// no user-visible reason.
-			const names = [...new Set(injections.flatMap((inj) => (inj.href.kind === 'file' ? [inj.href.filename] : [])))];
+			// Iterate injections: resolveSpecs() drops inert tags (an SVG source under
+			// `--input-format png`), and reading their files would fail for nothing.
+			const byName = new Map<string, ResolvedInjection>();
+			for (const inj of injections) if (inj.href.kind === 'file') byName.set(inj.href.filename, inj);
 			const bytesByName = new Map<string, Buffer>();
-			for (const name of names) {
+			for (const [name, inj] of byName) {
 				const path = resolve(assetDir, name);
 				try {
 					bytesByName.set(name, await readFile(path));
 				} catch (e) {
+					const rasterized = await rasterizeFor(inj, assetDir);
+					if (rasterized) {
+						bytesByName.set(name, rasterized);
+						status(`${c.dim('Rasterized')} ${c.cyan(name)} ${c.dim(`from ${sourceName} (not on disk)`)}`);
+						continue;
+					}
 					const linkedPath = c.link(pathToFileURL(path), c.cyan(path));
 					throw new CLIError(
 						`${c.red('inject --embed:')} cannot read "${name}" at ${linkedPath}: ${(e as Error).message}`,
-						{ code: 'EMBED_READ' },
+						{
+							code: 'EMBED_READ',
+							details: { filename: name, source: sourceName, reason: rasterizeFailure },
+							...(rasterizeFailure === undefined
+								? {}
+								: { suggest: `Rasterizing from "${sourceName}" failed: ${rasterizeFailure}` }),
+						},
 					);
 				}
 			}
@@ -169,6 +305,7 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			};
 		}
 
+		const results: { file: string; status: 'rewritten' | 'unchanged' | 'missing' }[] = [];
 		let rewritten = 0;
 		for (const rel of files) {
 			const abs = resolve(rel);
@@ -179,12 +316,14 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 				if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
 					const linkedPath = c.link(pathToFileURL(abs), c.cyan(abs));
 					warn(`${c.yellow('inject:')} "${rel}" — file not found at ${linkedPath}, ${c.dim('skipping')}`);
+					results.push({ file: abs, status: 'missing' });
 					continue;
 				}
 				throw e;
 			}
-			// Embedded hrefs read assets per file (default: the HTML's own directory).
-			const embed = flags.embed ? await embedResolverFor(flags['asset-dir'] ?? dirname(abs)) : undefined;
+			const assetDir = flags['asset-dir'] ?? dirname(abs);
+			if (flags['generate-missing']) await writeMissingInto(assetDir);
+			const embed = flags.embed ? await embedResolverFor(assetDir) : undefined;
 			const tags = await buildFaviconTags(injections, { base: flags.base, embed });
 			const next = injectTagsIntoHtml(original, tags);
 			if (next !== original) {
@@ -192,13 +331,17 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 				await mkdir(dir, { recursive: true });
 				await writeFile(abs, next, 'utf8');
 				rewritten++;
-				log(`${c.green('Rewrote')} ${c.link(pathToFileURL(abs), c.cyan(rel))}`);
+				results.push({ file: abs, status: 'rewritten' });
+				status(`${c.green('Rewrote')} ${c.link(pathToFileURL(abs), c.cyan(rel))}`);
 			} else {
-				log(`${c.dim('Unchanged')} ${c.link(pathToFileURL(abs), c.cyan(rel))}`);
+				results.push({ file: abs, status: 'unchanged' });
+				status(`${c.dim('Unchanged')} ${c.link(pathToFileURL(abs), c.cyan(rel))}`);
 			}
 		}
 
 		if (rewritten === 0 && files.length > 0) {
-			log(c.yellow('No files were modified.'));
+			status(c.yellow('No files were modified.'));
 		}
+
+		if (out.jsonMode) out.json({ rewritten, files: results, generated });
 	});

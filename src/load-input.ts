@@ -66,6 +66,12 @@ export function inputExtname(input: SourceInput): string {
 	return extname(inputBasename(input)).toLowerCase();
 }
 
+/** {@link inputBasename} stripped of its extension — `icon.svg` → `icon`. */
+export function inputStem(input: SourceInput): string {
+	const name = inputBasename(input);
+	return basename(name, extname(name));
+}
+
 /**
  * Read `input` bytes from disk or fetch them over http(s). `file://` URLs and
  * {@link URL} instances are accepted alongside plain strings.
