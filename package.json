@@ -86,7 +86,7 @@
 		"@typescript/native": "npm:typescript@^7",
 		"dprint": "^0.55.1",
 		"publint": "^0.3",
-		"runner-run": "^0.19.1",
+		"runner-run": "^0.24.0",
 		"sort-package-json": "^4.0.0",
 		"tsdown": "^0.22",
 		"typescript": ">=6,<7",
