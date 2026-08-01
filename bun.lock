@@ -5,8 +5,8 @@
     "": {
       "name": "vite-svg-to-ico",
       "dependencies": {
-        "ansispeck": "^0.1.2",
-        "dreamcli": "npm:@kjanat/dreamcli@^3.0.0-rc.9",
+        "ansispeck": "^0.4.1",
+        "dreamcli": "npm:@kjanat/dreamcli@^3.0.1",
         "sharp": "^0.35",
       },
       "devDependencies": {
@@ -317,7 +317,7 @@
 
     "ansis": ["ansis@4.3.1", "", {}, "sha512-BJ8/l4R5LRE7hW9WdSuGYrLSHi2ynxeFpDFbH0K/CgNeY/tyhk+vO6TYxXC5r5CpUhNVX310xzPsN/H9lCdfOA=="],
 
-    "ansispeck": ["ansispeck@0.1.2", "", {}, "sha512-C8cz1NraBBRgr0pyr3paCq9qbCIUxDzvCIatE7enZtV8CfTeEiN/difCpHMESr3rCvovahD+IEVNcf7kaw0NRQ=="],
+    "ansispeck": ["ansispeck@0.4.1", "", {}, "sha512-b2M5HQA8Mn8mW2yI/+dVjTrvwgPuocIXrK7GKH8AbR/2Wu27wDW8gI2JlCKMtP18CodsySAifmWQDKi/Ga89Yw=="],
 
     "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 
@@ -335,7 +335,7 @@
 
     "dprint": ["dprint@0.55.2", "", { "optionalDependencies": { "@dprint/android-arm64": "0.55.2", "@dprint/android-x64": "0.55.2", "@dprint/darwin-arm64": "0.55.2", "@dprint/darwin-x64": "0.55.2", "@dprint/linux-arm64-glibc": "0.55.2", "@dprint/linux-arm64-musl": "0.55.2", "@dprint/linux-loong64-glibc": "0.55.2", "@dprint/linux-loong64-musl": "0.55.2", "@dprint/linux-ppc64-glibc": "0.55.2", "@dprint/linux-ppc64-musl": "0.55.2", "@dprint/linux-riscv64-glibc": "0.55.2", "@dprint/linux-x64-glibc": "0.55.2", "@dprint/linux-x64-musl": "0.55.2", "@dprint/win32-arm64": "0.55.2", "@dprint/win32-x64": "0.55.2" }, "bin": { "dprint": "bin.cjs" } }, "sha512-1d4D4SB9KiD2qFnBWbl3aoYjLvPVpZoth28yxTT00xJv2yXugdz0Xoyv7sGG0w0hzE6hQZMgd6B333GnySDpGQ=="],
 
-    "dreamcli": ["@kjanat/dreamcli@3.0.0-rc.9", "", { "dependencies": { "ansispeck": "^0.1.2" } }, "sha512-U2jLt5dTGNuby4OC02hXZMCUwyf3IhQGNXj88Krq34gqgYOgAFoqBEWMflumCmTIbkZ452VJW42j+48Uv4fEMw=="],
+    "dreamcli": ["@kjanat/dreamcli@3.0.1", "", { "dependencies": { "ansispeck": "^0.4.1" } }, "sha512-FY5uBPI7EQouhyUEpQdMEVew4jGEcshBZSSH6a8G47Bie+uBk1flLj8l2sJrVDOyd9lG1i1BaYyV0jmgdENp3A=="],
 
     "dts-resolver": ["dts-resolver@3.0.0", "", { "peerDependencies": { "oxc-resolver": ">=11.0.0" }, "optionalPeers": ["oxc-resolver"] }, "sha512-1T1f+z+4tl9XD+m+0HBgWoL/nm0bOIffyWaUuUSBlFg/86IWvfx+wjNaO/ybU0AJzG9/Mi5hBUgGV6zCmWEN7Q=="],
 

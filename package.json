@@ -75,8 +75,8 @@
 		"fflate": "0.8.2"
 	},
 	"dependencies": {
-		"ansispeck": "^0.1.2",
-		"dreamcli": "npm:@kjanat/dreamcli@^3.0.0-rc.9",
+		"ansispeck": "^0.4.1",
+		"dreamcli": "npm:@kjanat/dreamcli@^3.0.1",
 		"sharp": "^0.35"
 	},
 	"devDependencies": {
