@@ -124,12 +124,7 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 	.action(async ({ args, flags, out }) => {
 		const sizes = flags.sizes;
 		const input = args.input;
-		// Outputs belong beside the image they came from, not in whatever directory
-		// the shell happens to be in. Remote sources have no local directory to sit
-		// beside, so they fall back to the cwd.
 		const outDir = flags['out-dir'] ?? (isHttpUrl(input) ? cwd() : dirname(input));
-		// Two answers to the same question. A precedence rule here would be the
-		// kind nobody remembers, so say so instead of silently picking one.
 		if (flags.output !== undefined && flags['keep-name']) {
 			throw new CLIError('--output and --keep-name both name the ICO', {
 				code: 'OUTPUT_NAME_CONFLICT',
@@ -150,15 +145,12 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 
 		await mkdir(outDir, { recursive: true });
 
-		/** Every path written, in write order — the payload behind `--json`. */
 		const written: string[] = [];
 
 		async function writeAt(targetPath: string, data: Buffer | string, detail?: string) {
 			await mkdir(dirname(targetPath), { recursive: true });
 			await writeFile(targetPath, data);
 			written.push(targetPath);
-			// status(), not log(): a progress note belongs on stderr so stdout stays
-			// pipeable, and it is what `--quiet` suppresses.
 			const linkedPath = c.link(pathToFileURL(targetPath), c.cyan(targetPath));
 			out.status(`${c.green('Wrote')} ${linkedPath}${detail ? ` ${c.dim(detail)}` : ''}`);
 		}
@@ -172,8 +164,6 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 
 		if (flags['emit-source']) {
 			const sourcePath = resolve(outDir, inputBasename(input));
-			// Rewriting the source with its own bytes gains nothing and risks
-			// truncating it if the write is interrupted.
 			if (sourcePath === input) {
 				out.status(`${c.dim('Skipped')} ${c.cyan(sourcePath)} ${c.dim('(source already in the output directory)')}`);
 			} else {

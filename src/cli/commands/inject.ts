@@ -137,7 +137,6 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			throw new CLIError('At least one HTML file path is required', { code: 'MISSING_FILES' });
 		}
 		const sourceName = flags.source;
-		// Build the same spec model the plugin uses, then resolve to injections.
 		const specs: EmitSpec[] = [{ format: 'ico', sizes: flags.sizes, filename: flags.output, inject: true }];
 		if (sourceName) specs.push({ format: 'svg', filename: sourceName, inject: true });
 		const { injections } = resolveSpecs(specs, { inputFormat: flags['input-format'] });
@@ -148,10 +147,8 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 		 * inlines them by filename. Throws a clear error if a referenced file is missing.
 		 */
 		async function embedResolverFor(assetDir: string): Promise<NonNullable<TagContext['embed']>> {
-			// Read exactly the files the resolved injections reference — not whatever
-			// `--source` implies. resolveSpecs() may drop an inert tag (e.g. an SVG
-			// source under `--input-format png`), and reading its file would fail for
-			// no user-visible reason.
+			// Iterate injections: resolveSpecs() drops inert tags (an SVG source under
+			// `--input-format png`), and reading their files would fail for nothing.
 			const names = [...new Set(injections.flatMap((inj) => (inj.href.kind === 'file' ? [inj.href.filename] : [])))];
 			const bytesByName = new Map<string, Buffer>();
 			for (const name of names) {
@@ -174,7 +171,6 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			};
 		}
 
-		/** Per-file outcome, in argument order — the payload behind `--json`. */
 		const results: { file: string; status: 'rewritten' | 'unchanged' | 'missing' }[] = [];
 		let rewritten = 0;
 		for (const rel of files) {
@@ -191,7 +187,6 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 				}
 				throw e;
 			}
-			// Embedded hrefs read assets per file (default: the HTML's own directory).
 			const embed = flags.embed ? await embedResolverFor(flags['asset-dir'] ?? dirname(abs)) : undefined;
 			const tags = await buildFaviconTags(injections, { base: flags.base, embed });
 			const next = injectTagsIntoHtml(original, tags);

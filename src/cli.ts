@@ -58,7 +58,7 @@ import { inject } from '#cli/commands/inject';
  * {@link generate} is the default command: the one-off "turn this image into a
  * favicon" case is what most invocations want, so it needs no subcommand.
  * `{ route: true }` keeps the explicit name dispatchable and listed in help,
- * so the shorthand is an extra surface rather than a replacement.
+ * so both spellings work.
  */
 export const app = cli('svg-to-ico')
 	.manifest({ from: import.meta.url })

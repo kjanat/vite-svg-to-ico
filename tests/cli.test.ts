@@ -45,8 +45,7 @@ describe('CLI', () => {
 			const help = result.stdout.join('\n');
 			const flatHelp = help.replace(/\s+/g, ' ');
 			expect(flatHelp).toContain("Defaults to the source image's own directory");
-			// The out-dir default is derived per input, so there is no resolved value
-			// to print — and never the absolute cwd of whoever rendered the help.
+			// Guards a past bug: the rendering machine's absolute cwd leaking into help.
 			expect(flatHelp).not.toContain('back to the current directory. (default:');
 			expect(help).not.toContain(cwd());
 		});
@@ -132,7 +131,6 @@ describe('CLI', () => {
 			const dir = await setupTmp();
 			await Bun.write(join(dir, 'logo.svg'), await Bun.file(FIXTURE).text());
 
-			// The shape a wrapper script produces: preset flags first, per-call override after.
 			const result = await runCommand(
 				generate,
 				[join(dir, 'logo.svg'), '--keep-name', '--sizes', '16', '--no-keep-name', '-o', 'custom.ico'],
@@ -195,7 +193,6 @@ describe('CLI', () => {
 			const result = await runCommand(generate, [FIXTURE, '--out-dir', dir, '--sizes', '16'], { out });
 			expect(result.exitCode).toBe(0);
 
-			// Progress notes are status lines: stderr, so stdout stays pipeable.
 			const rendered = stderr.join('');
 			expect(stdout.join('')).toBe('');
 			expect(rendered).toContain('\x1b[32mWrote\x1b[39m');
@@ -296,8 +293,6 @@ describe('CLI', () => {
 		it('falls back to the cwd for a remote source, which has no local directory', async () => {
 			const dir = await setupTmp();
 			const svgBytes = await Bun.file(FIXTURE).bytes();
-			// A real server, not a fetch stub: the CLI runs in a subprocess here, so
-			// the cwd it resolves against has to be a real one too.
 			const server = Bun.serve({
 				port: 0,
 				fetch: () => new Response(svgBytes, { headers: { 'content-type': 'image/svg+xml' } }),
@@ -344,7 +339,6 @@ describe('CLI', () => {
 			expect(result.exitCode).not.toBe(0);
 			expect(result.error?.code).toBe('INPUT_IS_ICO');
 			expect(result.error?.suggest).toContain(join(dir, 'favicon.svg'));
-			// The ICO is an output, and the flag that names it is the actionable part.
 			expect(result.error?.suggest).toContain('--output');
 		});
 
@@ -429,7 +423,6 @@ describe('CLI', () => {
 			const help = result.stdout.join('\n');
 			expect(help).toContain('generate (default)');
 			expect(help).toContain('inject');
-			// Examples resolve the real program name rather than hardcoding one.
 			expect(help).toContain('$ svg-to-ico public/icon.svg');
 		});
 
@@ -515,7 +508,6 @@ describe('CLI', () => {
 			expect(result.exitCode).toBe(0);
 			const all = [...result.stdout, ...result.stderr].join('\n');
 			expect(all).toContain('file not found');
-			// the present one still got rewritten
 			expect(await Bun.file(present).text()).toContain('/favicon.ico');
 		});
 

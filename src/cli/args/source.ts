@@ -62,7 +62,7 @@ async function imagesIn(dir: string, limit = 3): Promise<string[]> {
 
 /**
  * Reject an unreadable source with a message that names the likely intended
- * file, rather than letting `readFile` surface a bare `ENOENT`/`EISDIR`.
+ * file. Left alone, `readFile` surfaces a bare `ENOENT`/`EISDIR`.
  *
  * `generate` reads a *source* image and writes the ICO, and the common mistake
  * is handing it the ICO path it is supposed to create — hence the three cases
@@ -77,8 +77,7 @@ export async function assertReadableSource(input: string): Promise<void> {
 	const shown = display(path);
 	const details = { input: path };
 
-	// Checked before existence: an ICO that *does* exist is just as wrong as one
-	// that does not, and sharp cannot decode the format either way.
+	// Before the existence check: sharp cannot decode ICO whether it exists or not.
 	if (inputExtname(path) === '.ico') {
 		const twin = await sameStemSource(path);
 		throw new CLIError(`Cannot read ${shown}: ICO is an output format, not a source image`, {
