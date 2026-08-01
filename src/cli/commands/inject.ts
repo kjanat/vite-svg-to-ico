@@ -112,8 +112,8 @@ carries the image itself, no file reference. Reads the referenced files from ${b
 	.flag(
 		'asset-dir',
 		flag.path().describe(
-			`Directory to read favicon files from when ${blue`--embed`} is set. \
-Defaults to each HTML file's own directory.`,
+			`Directory favicon files are read from when ${blue`--embed`} is set, and written to when \
+${blue`--generate-missing`} is set. Defaults to each HTML file's own directory.`,
 		),
 	)
 	.example(
@@ -165,6 +165,9 @@ Defaults to each HTML file's own directory.`,
 		 * `sharp` loads through a dynamic import so a plain `inject` run, which
 		 * rasterizes nothing, does not pay for the native module.
 		 */
+		/** Why the last rasterize attempt failed, carried into the caller's error details. */
+		let rasterizeFailure: string | undefined;
+
 		async function rasterizeFor(inj: ResolvedInjection, assetDir: string): Promise<Buffer | undefined> {
 			if (sourceName === undefined) return undefined;
 			let sourceBytes: Buffer;
@@ -175,22 +178,31 @@ Defaults to each HTML file's own directory.`,
 			}
 			if (inj.type === 'image/svg+xml') return sourceBytes;
 
-			const { generateSizedPngs } = await import('#raster');
-			if (inj.type === 'image/x-icon') {
-				const { packIco } = await import('#ico');
-				return packIco(await generateSizedPngs(sourceBytes, { sizes: flags.sizes, optimize: true }));
+			// A corrupt or unsupported source makes sharp throw. Catching here keeps
+			// the callers' diagnostics in play instead of surfacing a native error.
+			try {
+				const { generateSizedPngs } = await import('#raster');
+				if (inj.type === 'image/x-icon') {
+					const { packIco } = await import('#ico');
+					return packIco(await generateSizedPngs(sourceBytes, { sizes: flags.sizes, optimize: true }));
+				}
+				if (inj.type === 'image/png') {
+					const size = Number.parseInt(inj.sizes ?? '', 10);
+					if (!Number.isInteger(size)) return undefined;
+					const [png] = await generateSizedPngs(sourceBytes, { sizes: [size], optimize: true });
+					return png?.buffer;
+				}
+				return undefined;
+			} catch (e) {
+				rasterizeFailure = (e as Error).message;
+				return undefined;
 			}
-			if (inj.type === 'image/png') {
-				const size = Number.parseInt(inj.sizes ?? '', 10);
-				if (!Number.isInteger(size)) return undefined;
-				const [png] = await generateSizedPngs(sourceBytes, { sizes: [size], optimize: true });
-				return png?.buffer;
-			}
-			return undefined;
 		}
 
 		/** Targets already checked, so a multi-file run rasterizes each once. */
 		const ensured = new Set<string>();
+		/** Assets `--generate-missing` created, reported alongside the HTML results. */
+		const generated: string[] = [];
 
 		/**
 		 * Write any referenced favicon that is missing from `assetDir`, rasterized
@@ -211,7 +223,7 @@ Defaults to each HTML file's own directory.`,
 						`${c.red('inject --generate-missing:')} cannot produce "${inj.href.filename}"`,
 						{
 							code: 'GENERATE_MISSING',
-							details: { filename: inj.href.filename, source: sourceName },
+							details: { filename: inj.href.filename, source: sourceName, reason: rasterizeFailure },
 							suggest: sourceName === undefined
 								? 'Pass --source <image> to rasterize missing favicons from'
 								: `Check that "${sourceName}" exists in ${assetDir} and is a supported image`,
@@ -220,6 +232,7 @@ Defaults to each HTML file's own directory.`,
 				}
 				await mkdir(dirname(path), { recursive: true });
 				await writeFile(path, bytes);
+				generated.push(path);
 				status(`${c.green('Wrote')} ${c.link(pathToFileURL(path), c.cyan(path))} ${c.dim(`(from ${sourceName})`)}`);
 			}
 		}
@@ -250,7 +263,13 @@ Defaults to each HTML file's own directory.`,
 					const linkedPath = c.link(pathToFileURL(path), c.cyan(path));
 					throw new CLIError(
 						`${c.red('inject --embed:')} cannot read "${name}" at ${linkedPath}: ${(e as Error).message}`,
-						{ code: 'EMBED_READ' },
+						{
+							code: 'EMBED_READ',
+							details: { filename: name, source: sourceName, reason: rasterizeFailure },
+							...(rasterizeFailure === undefined
+								? {}
+								: { suggest: `Rasterizing from "${sourceName}" failed: ${rasterizeFailure}` }),
+						},
 					);
 				}
 			}
@@ -300,5 +319,5 @@ Defaults to each HTML file's own directory.`,
 			status(c.yellow('No files were modified.'));
 		}
 
-		if (out.jsonMode) out.json({ rewritten, files: results });
+		if (out.jsonMode) out.json({ rewritten, files: results, generated });
 	});

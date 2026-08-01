@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `generate` is now the CLI's **default command**, so `svg-to-ico src/icon.svg`
-  works without a subcommand. Previously a bare path was rejected with
+  works without a subcommand. Previously, a bare path was rejected with
   `Unknown command: src/icon.svg`. The explicit `svg-to-ico generate …` form
   still routes and is listed in help.
 - Actionable diagnostics for a bad `generate` input, replacing raw
@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--no-optimize` as the negated spelling of `--optimize`, rendered
   `--[no-]optimize` in help.
 - `inject --generate-missing`, which rasterizes any referenced favicon that is
-  not on disk from `--source` and writes it into `--asset-dir`. Without it a
+  not on disk from `--source` and writes it into `--asset-dir`. Without it, a
   missing file is still injected as an href and 404s at run time — `inject`
   never checked existence on the non-embed path. Existing files are left
   untouched, and a multi-file run rasterizes each target once.

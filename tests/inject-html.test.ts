@@ -97,6 +97,13 @@ describe('injectTagsIntoHtml', () => {
 			);
 		});
 
+		it('scans the whole document when there is no opening <head> tag', () => {
+			const html = '<html>\n  <title>x</title>\n</head>\n</html>';
+			expect(injectTagsIntoHtml(html, [ico])).toBe(
+				'<html>\n  <title>x</title>\n  <link rel="icon" href="/favicon.ico">\n</head>\n</html>',
+			);
+		});
+
 		it('preserves CRLF line endings', () => {
 			const html = '<html>\r\n  <head>\r\n    <title>x</title>\r\n  </head>\r\n</html>';
 			const out = injectTagsIntoHtml(html, [ico]);

@@ -679,6 +679,47 @@ describe('CLI', () => {
 			expect(await Bun.file(join(dir, 'favicon.ico')).bytes()).toEqual(new Uint8Array(existing));
 		});
 
+		it('--generate-missing reports the assets it created under --json', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await Bun
+				.$`bun ${CLI_ENTRY} --json inject ${file} --source favicon.svg --sizes 16 --generate-missing`
+				.quiet()
+				.nothrow();
+			expect(result.exitCode).toBe(0);
+
+			const summary = JSON.parse(result.stdout.toString());
+			expect(summary.generated).toEqual([join(dir, 'favicon.ico')]);
+		});
+
+		it('reports a corrupt --source as a diagnostic, not a sharp stack trace', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), 'not an image at all');
+
+			const result = await runCommand(inject, [file, '--source', 'favicon.svg', '--generate-missing']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('GENERATE_MISSING');
+			// The underlying sharp message survives for anyone reading --json.
+			expect((result.error?.details as { reason?: string })?.reason).toContain('unsupported image format');
+		});
+
+		it('--embed surfaces a corrupt --source instead of a raw sharp error', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), 'not an image at all');
+
+			const result = await runCommand(inject, [file, '--source', 'favicon.svg', '--embed']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('EMBED_READ');
+			expect(result.error?.suggest).toContain('unsupported image format');
+		});
+
 		it('--generate-missing fails clearly with nothing to rasterize from', async () => {
 			const dir = await setupTmp();
 			const file = join(dir, 'index.html');
