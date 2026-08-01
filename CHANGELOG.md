@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{ error: { code, message, suggest, details } }`.
 - `--no-optimize` as the negated spelling of `--optimize`, rendered
   `--[no-]optimize` in help.
+- `inject --generate-missing`, which rasterizes any referenced favicon that is
+  not on disk from `--source` and writes it into `--asset-dir`. Without it a
+  missing file is still injected as an href and 404s at run time — `inject`
+  never checked existence on the non-embed path. Existing files are left
+  untouched, and a multi-file run rasterizes each target once.
 - `inject --embed` now rasterizes a missing target from `--source` instead of
   failing. Under `--embed` the href carries the image itself, so nothing has to
   exist at the referenced path — the previous `EMBED_READ` error was demanding
@@ -61,6 +66,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Injected `<link>` tags now copy the document's own whitespace instead of a
+  hardcoded four-space indent: tags take the indentation of the last populated
+  line in `<head>`, `</head>` keeps its own, and the line ending is preserved.
+  A `</head>` that does not start its own line is treated as minified and gets
+  no whitespace at all, so single-line documents stay single-line. Two-space
+  documents render as before.
 - Progress notes (`Wrote …`, `Rewrote …`, `Unchanged …`) moved from stdout to
   stderr as DreamCLI status lines. Stdout is now clean for piping, and the
   advertised `--quiet`/`-q` flag actually silences them — before, it had no

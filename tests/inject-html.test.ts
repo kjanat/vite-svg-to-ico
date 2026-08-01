@@ -58,4 +58,50 @@ describe('injectTagsIntoHtml', () => {
 		expect(out).toContain('<body>x</body>');
 		expect(out).toContain('href="/favicon.ico"');
 	});
+
+	describe('indentation', () => {
+		const png = { tag: 'link' as const, attrs: { rel: 'icon', href: '/f.png' }, injectTo: 'head' as const };
+
+		it('copies the indentation of the last populated line in <head>', () => {
+			const html = '<html>\n  <head>\n    <title>x</title>\n  </head>\n</html>';
+			expect(injectTagsIntoHtml(html, [ico])).toBe(
+				'<html>\n  <head>\n    <title>x</title>\n    <link rel="icon" href="/favicon.ico">\n  </head>\n</html>',
+			);
+		});
+
+		it('uses tabs in a tab-indented document', () => {
+			const html = '<html>\n\t<head>\n\t\t<title>x</title>\n\t</head>\n</html>';
+			const out = injectTagsIntoHtml(html, [ico, png]);
+			expect(out).toContain(
+				'\n\t\t<link rel="icon" href="/favicon.ico">\n\t\t<link rel="icon" href="/f.png">\n\t</head>',
+			);
+			expect(out).not.toContain('    <link');
+		});
+
+		it('matches a four-space document instead of imposing its own width', () => {
+			const html = '<html>\n    <head>\n        <title>x</title>\n    </head>\n</html>';
+			expect(injectTagsIntoHtml(html, [ico])).toContain('\n        <link rel="icon" href="/favicon.ico">\n    </head>');
+		});
+
+		it('adds no whitespace when </head> does not start its own line', () => {
+			const html = '<html><head><title>x</title></head><body></body></html>';
+			expect(injectTagsIntoHtml(html, [ico, png])).toBe(
+				'<html><head><title>x</title><link rel="icon" href="/favicon.ico"><link rel="icon" href="/f.png"></head><body></body></html>',
+			);
+		});
+
+		it('steps in from the closing tag when <head> is empty', () => {
+			const html = '<html>\n  <head>\n  </head>\n</html>';
+			expect(injectTagsIntoHtml(html, [ico])).toBe(
+				'<html>\n  <head>\n    <link rel="icon" href="/favicon.ico">\n  </head>\n</html>',
+			);
+		});
+
+		it('preserves CRLF line endings', () => {
+			const html = '<html>\r\n  <head>\r\n    <title>x</title>\r\n  </head>\r\n</html>';
+			const out = injectTagsIntoHtml(html, [ico]);
+			expect(out).toContain('\r\n    <link rel="icon" href="/favicon.ico">\r\n  </head>');
+			expect(out).not.toMatch(/[^\r]\n/);
+		});
+	});
 });

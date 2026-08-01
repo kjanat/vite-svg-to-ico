@@ -646,6 +646,61 @@ describe('CLI', () => {
 			expect(result.stderr.join('')).toContain('must be <= 4096');
 		});
 
+		it('--generate-missing writes the referenced files it cannot find', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(
+				inject,
+				[file, '--source', 'favicon.svg', '--sizes', '16', '--png-sizes', '192', '--generate-missing'],
+			);
+			expect(result.exitCode).toBe(0);
+
+			expect((await Bun.file(join(dir, 'favicon.ico')).bytes()).byteLength).toBeGreaterThan(0);
+			const png = await Bun.file(join(dir, 'favicon-192x192.png')).bytes();
+			expect(png[0]).toBe(0x89); // PNG magic
+			expect(await Bun.file(file).text()).toContain('href="/favicon.ico"');
+		});
+
+		it('--generate-missing leaves files that already exist untouched', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), await Bun.file(FIXTURE).text());
+			const existing = Buffer.from([0, 0, 1, 0, 7, 7, 7]);
+			await Bun.write(join(dir, 'favicon.ico'), existing);
+
+			await runCommand(inject, [file, '--source', 'favicon.svg', '--generate-missing']);
+			expect(await Bun.file(join(dir, 'favicon.ico')).bytes()).toEqual(new Uint8Array(existing));
+		});
+
+		it('--generate-missing fails clearly with nothing to rasterize from', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+
+			const result = await runCommand(inject, [file, '--generate-missing']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('GENERATE_MISSING');
+			expect(result.error?.suggest).toContain('--source');
+		});
+
+		it('--generate-missing rasterizes once across several HTML files', async () => {
+			const dir = await setupTmp();
+			const a = join(dir, 'a.html');
+			const b = join(dir, 'b.html');
+			await Bun.write(a, '<head></head>');
+			await Bun.write(b, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), await Bun.file(FIXTURE).text());
+
+			const result = await runCommand(inject, [a, b, '--source', 'favicon.svg', '--generate-missing']);
+			expect(result.exitCode).toBe(0);
+			const wrote = result.stderr.join('\n').match(/Wrote .*favicon\.ico/g) ?? [];
+			expect(wrote).toHaveLength(1);
+		});
+
 		it('--embed rasterizes a missing target from --source without writing it', async () => {
 			const dir = await setupTmp();
 			const file = join(dir, 'index.html');

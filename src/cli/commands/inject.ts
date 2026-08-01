@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { blue, green, red } from 'ansispeck/safe';
@@ -76,6 +76,17 @@ ${blue`<link rel="${red`icon`}" type="${red`image/svg+xml`}">`} tag is injected.
 			.describe(
 				`Format of ${blue`--source`} for the MIME type attribute. Only ${red`svg`} triggers the SVG \
 ${blue`<link>`}; other values are accepted but currently inert in tag generation.`,
+			),
+	)
+	.flag(
+		'generate-missing',
+		flag
+			.boolean()
+			.default(false)
+			.describe(
+				`Rasterize any referenced favicon that is not on disk from ${blue`--source`} and write it into \
+${blue`--asset-dir`}. Without this, a missing file is injected as an href anyway and 404s at run time. \
+Files already present are left alone.`,
 			),
 	)
 	.flag(
@@ -178,6 +189,41 @@ Defaults to each HTML file's own directory.`,
 			return undefined;
 		}
 
+		/** Targets already checked, so a multi-file run rasterizes each once. */
+		const ensured = new Set<string>();
+
+		/**
+		 * Write any referenced favicon that is missing from `assetDir`, rasterized
+		 * from `--source`. Unlike the embed path this leaves real files behind,
+		 * because the injected href points at them.
+		 */
+		async function writeMissingInto(assetDir: string) {
+			for (const inj of injections) {
+				if (inj.href.kind !== 'file') continue;
+				const path = resolve(assetDir, inj.href.filename);
+				if (ensured.has(path)) continue;
+				ensured.add(path);
+				if (await stat(path).then(() => true, () => false)) continue;
+
+				const bytes = await rasterizeFor(inj, assetDir);
+				if (!bytes) {
+					throw new CLIError(
+						`${c.red('inject --generate-missing:')} cannot produce "${inj.href.filename}"`,
+						{
+							code: 'GENERATE_MISSING',
+							details: { filename: inj.href.filename, source: sourceName },
+							suggest: sourceName === undefined
+								? 'Pass --source <image> to rasterize missing favicons from'
+								: `Check that "${sourceName}" exists in ${assetDir} and is a supported image`,
+						},
+					);
+				}
+				await mkdir(dirname(path), { recursive: true });
+				await writeFile(path, bytes);
+				status(`${c.green('Wrote')} ${c.link(pathToFileURL(path), c.cyan(path))} ${c.dim(`(from ${sourceName})`)}`);
+			}
+		}
+
 		/**
 		 * Read the favicon files an embed run needs (ICO, plus the SVG source if
 		 * set) from `assetDir`, returning a {@link TagContext} embed resolver that
@@ -232,7 +278,9 @@ Defaults to each HTML file's own directory.`,
 				}
 				throw e;
 			}
-			const embed = flags.embed ? await embedResolverFor(flags['asset-dir'] ?? dirname(abs)) : undefined;
+			const assetDir = flags['asset-dir'] ?? dirname(abs);
+			if (flags['generate-missing']) await writeMissingInto(assetDir);
+			const embed = flags.embed ? await embedResolverFor(assetDir) : undefined;
 			const tags = await buildFaviconTags(injections, { base: flags.base, embed });
 			const next = injectTagsIntoHtml(original, tags);
 			if (next !== original) {

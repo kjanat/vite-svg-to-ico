@@ -234,6 +234,18 @@ svg-to-ico inject dist/index.html --source favicon.svg --png-sizes 192 --embed
 A file already on disk still wins; the run only fails if there is no usable
 `--source` to fall back to.
 
+Without `--embed` the href points at a real path, so the file has to exist —
+`inject` does not check, and a missing one 404s at run time. `--generate-missing`
+rasterizes and writes whatever is absent, making a single `inject` call produce
+the whole favicon set:
+
+```sh
+svg-to-ico inject dist/index.html --source favicon.svg --png-sizes 192 --generate-missing
+```
+
+Injected tags copy the document's own indentation — tabs stay tabs, and a
+minified single-line document gains no whitespace.
+
 `generate` is the default command, so the common case needs no subcommand —
 these two are the same invocation:
 
