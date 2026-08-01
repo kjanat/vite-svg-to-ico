@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { blue, green, red } from 'ansispeck';
 import { CLIError, command, flag } from 'dreamcli';
 import { assertReadableSource, source } from '#cli/args/source';
+import { DEFAULT_ICO_FILENAME, outputFlag } from '#cli/flags/output';
 import { sizesFlag } from '#cli/flags/sizes';
 import { packIco } from '#ico';
 import { inputBasename, inputStem, isHttpUrl, loadInputBytes } from '#loadInput';
@@ -41,17 +42,13 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 	)
 	.flag(
 		'output',
-		flag
-			.string()
-			.nonEmpty()
-			.alias('o')
-			.describe(
-				`Filename for the combined ICO (relative to ${
-					blue('--out-dir')
-				}). May include subdirectories; they are created as needed. Defaults to ${
-					blue('favicon.ico')
-				}, the name browsers request on their own.`,
-			),
+		outputFlag().describe(
+			`Filename for the combined ICO (relative to ${
+				blue('--out-dir')
+			}). May include subdirectories; they are created as needed. Defaults to ${
+				blue(DEFAULT_ICO_FILENAME)
+			}, the name browsers request on their own.`,
+		),
 	)
 	.flag(
 		'keep-name',
@@ -61,10 +58,10 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 			.negatable()
 			.describe(
 				`Name the ICO after the source image — ${blue('icon.svg')} yields ${blue('icon.ico')} instead of ${
-					blue('favicon.ico')
+					blue(DEFAULT_ICO_FILENAME)
 				}, and ${
 					blue('--emit-sizes')
-				} follows the same stem. Browsers only auto-request favicon.ico, so a renamed ICO needs its own <link> tag. Conflicts with ${
+				} follows the same stem. Browsers only auto-request ${DEFAULT_ICO_FILENAME}, so a renamed ICO needs its own <link> tag. Conflicts with ${
 					blue('--output')
 				}; use ${blue('--no-keep-name')} to opt back out when a wrapper script presets it.`,
 			),
@@ -131,7 +128,7 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 				suggest: `Drop --keep-name to write '${flags.output}', or drop --output to derive the name from the source`,
 			});
 		}
-		const outputName = flags.output ?? (flags['keep-name'] ? `${inputStem(input)}.ico` : 'favicon.ico');
+		const outputName = flags.output ?? (flags['keep-name'] ? `${inputStem(input)}.ico` : DEFAULT_ICO_FILENAME);
 		const outputStem = outputName.replace(/\.ico$/i, '');
 		const { color: c } = out;
 

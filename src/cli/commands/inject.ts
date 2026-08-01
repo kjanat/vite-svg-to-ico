@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { blue, green, red } from 'ansispeck';
 import { arg, CLIError, command, flag } from 'dreamcli';
+import { DEFAULT_ICO_FILENAME, outputFlag } from '#cli/flags/output';
 import { sizesFlag } from '#cli/flags/sizes';
 import { toDataUri } from '#dataUri';
 import { buildFaviconTags, type TagContext } from '#faviconTags';
@@ -39,11 +40,8 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 	)
 	.flag(
 		'output',
-		flag
-			.string()
-			.nonEmpty()
-			.alias('o')
-			.default('favicon.ico')
+		outputFlag()
+			.default(DEFAULT_ICO_FILENAME)
 			.describe(
 				`ICO filename referenced in the injected ${blue('<link>')} (matches ${blue('generate')}'s ${
 					blue('--output')
