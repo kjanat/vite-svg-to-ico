@@ -720,6 +720,21 @@ describe('CLI', () => {
 			expect(result.error?.suggest).toContain('unsupported image format');
 		});
 
+		it('--generate-missing refuses a target that is not a regular file', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.svg'), await Bun.file(FIXTURE).text());
+			// A directory on the target path would otherwise read as "already there".
+			await mkdir(join(dir, 'favicon.ico'), { recursive: true });
+
+			const result = await runCommand(inject, [file, '--source', 'favicon.svg', '--generate-missing']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.error?.code).toBe('GENERATE_MISSING');
+			expect(result.error?.message).toContain('not a regular file');
+			expect(await Bun.file(file).text()).not.toContain('href=');
+		});
+
 		it('--generate-missing fails clearly with nothing to rasterize from', async () => {
 			const dir = await setupTmp();
 			const file = join(dir, 'index.html');

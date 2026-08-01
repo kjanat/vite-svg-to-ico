@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `INPUT_IS_DIRECTORY` — suggests an image inside the directory.
 - `--json` now emits a summary for both commands instead of nothing:
   `generate` reports `{ input, ico, sizes, bytes, files }` and `inject` reports
-  `{ rewritten, files: [{ file, status }] }`. Input diagnostics serialize as
+  `{ rewritten, files: [{ file, status }], generated }`, where `generated` lists
+  any assets `--generate-missing` wrote. Input diagnostics serialize as
   `{ error: { code, message, suggest, details } }`.
 - `--no-optimize` as the negated spelling of `--optimize`, rendered
   `--[no-]optimize` in help.

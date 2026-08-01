@@ -169,6 +169,8 @@ ${blue`--generate-missing`} is set. Defaults to each HTML file's own directory.`
 		let rasterizeFailure: string | undefined;
 
 		async function rasterizeFor(inj: ResolvedInjection, assetDir: string): Promise<Buffer | undefined> {
+			// Cleared per attempt so a caller never reports an earlier target's failure.
+			rasterizeFailure = undefined;
 			if (sourceName === undefined) return undefined;
 			let sourceBytes: Buffer;
 			try {
@@ -215,7 +217,29 @@ ${blue`--generate-missing`} is set. Defaults to each HTML file's own directory.`
 				const path = resolve(assetDir, inj.href.filename);
 				if (ensured.has(path)) continue;
 				ensured.add(path);
-				if (await stat(path).then(() => true, () => false)) continue;
+
+				// Only a regular file counts as already present. A directory sitting on
+				// the path would otherwise be taken for the favicon and injected as a
+				// dead href, and a stat failure other than ENOENT is not "missing".
+				const filename = inj.href.filename;
+				const existing = await stat(path).catch((e: NodeJS.ErrnoException) => {
+					if (e.code === 'ENOENT') return undefined;
+					throw new CLIError(
+						`${c.red('inject --generate-missing:')} cannot inspect "${filename}": ${e.message}`,
+						{ code: 'GENERATE_MISSING', details: { filename, path } },
+					);
+				});
+				if (existing?.isFile()) continue;
+				if (existing !== undefined) {
+					throw new CLIError(
+						`${c.red('inject --generate-missing:')} "${filename}" exists but is not a regular file`,
+						{
+							code: 'GENERATE_MISSING',
+							details: { filename, path },
+							suggest: `Remove ${path}, or point --output elsewhere`,
+						},
+					);
+				}
 
 				const bytes = await rasterizeFor(inj, assetDir);
 				if (!bytes) {
