@@ -42,12 +42,12 @@ Sharp-supported formats: ${blue('.svg')}, ${blue('.svgz')}, ${blue('.png')}, ${b
 	)
 	.flag(
 		'output',
+		// The `(default: …)` suffix is hand-written because the flag carries no
+		// `.default()`; see kjanat/dreamcli#88 and #89.
 		outputFlag().describe(
 			`Filename for the combined ICO (relative to ${
 				blue('--out-dir')
-			}). May include subdirectories; they are created as needed. Defaults to ${
-				blue(DEFAULT_ICO_FILENAME)
-			}, the name browsers request on their own.`,
+			}). May include subdirectories; they are created as needed. (default: ${DEFAULT_ICO_FILENAME})`,
 		),
 	)
 	.flag(
