@@ -16,3 +16,10 @@ export const DEFAULT_ICO_FILENAME = 'favicon.ico';
  * tell an explicit `-o` from `--keep-name`.
  */
 export const outputFlag = () => flag.string().nonEmpty().alias('o');
+
+/**
+ * Stem the per-size filenames hang off: `--output favicon.ico` gives
+ * `favicon-16x16.png`. `generate` writes those files and `inject` references
+ * them, so both derive the stem here to keep a custom `--output` in step.
+ */
+export const icoStem = (output: string) => output.replace(/\.ico$/i, '');

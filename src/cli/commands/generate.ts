@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { blue, green, red } from 'ansispeck/safe';
 import { CLIError, command, flag } from 'dreamcli';
 import { assertReadableSource, source } from '#cli/args/source';
-import { DEFAULT_ICO_FILENAME, outputFlag } from '#cli/flags/output';
+import { DEFAULT_ICO_FILENAME, icoStem, outputFlag } from '#cli/flags/output';
 import { sizesFlag } from '#cli/flags/sizes';
 import { packIco } from '#ico';
 import { inputBasename, inputStem, isHttpUrl, loadInputBytes } from '#loadInput';
@@ -121,7 +121,7 @@ ${red`ico`} (favicon-NxN.ico), ${red`both`}, or ${red`none`}.`,
 			});
 		}
 		const outputName = flags.output ?? (flags['keep-name'] ? `${inputStem(input)}.ico` : DEFAULT_ICO_FILENAME);
-		const outputStem = outputName.replace(/\.ico$/i, '');
+		const outputStem = icoStem(outputName);
 		const { color: c } = out;
 
 		await assertReadableSource(input);

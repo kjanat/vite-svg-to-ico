@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{ error: { code, message, suggest, details } }`.
 - `--no-optimize` as the negated spelling of `--optimize`, rendered
   `--[no-]optimize` in help.
+- `inject --png-sizes`, which injects a per-size
+  `<link rel="icon" type="image/png" sizes="NxN">` for each size given. The
+  plugin could already emit these through a `{ format: 'png', inject }` spec,
+  but the CLI built only ICO and SVG specs, so files written by
+  `generate --emit-sizes png` had no way to be referenced from HTML. Filenames
+  derive from `--output` on both sides, so `-o logo.ico` yields
+  `logo-192x192.png` in the files and in the hrefs; `--embed` inlines the PNG
+  bytes as `data:` URIs like the ICO.
 - `generate --keep-name`, which names the ICO after the source image
   (`logo.svg` -> `logo.ico`, with `--emit-sizes` following the same stem)
   instead of the `favicon.ico` default. Intended for converting a set of icons,

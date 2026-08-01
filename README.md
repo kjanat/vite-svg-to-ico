@@ -208,6 +208,20 @@ svg-to-ico generate src/icon.svg --out-dir build --sizes 16 --sizes 32 --sizes 4
 svg-to-ico inject build/index.html --sizes 16 --sizes 32 --sizes 48 --source icon.svg
 ```
 
+`inject` writes no images — it rewrites HTML and expects the files to exist
+already. `--png-sizes` links the per-size PNGs that `generate --emit-sizes png`
+produced, giving `<link rel="icon" type="image/png" sizes="192x192">` alongside
+the combined ICO:
+
+```sh
+svg-to-ico generate src/icon.svg -d build -s 192 -s 512 --emit-sizes png
+svg-to-ico inject build/index.html --png-sizes 192 --png-sizes 512
+```
+
+Both sides derive the per-size filenames from `--output`, so `-o logo.ico`
+yields `logo-192x192.png` in the files and in the hrefs. Under `--embed` the
+PNG bytes are inlined as `data:` URIs like the ICO.
+
 `generate` is the default command, so the common case needs no subcommand —
 these two are the same invocation:
 

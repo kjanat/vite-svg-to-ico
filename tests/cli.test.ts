@@ -570,6 +570,82 @@ describe('CLI', () => {
 			expect(result.stderr.join('')).toContain('cannot read');
 		});
 
+		it('--png-sizes links the per-size PNGs generate writes', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+
+			const result = await runCommand(inject, [file, '--sizes', '16', '--png-sizes', '192', '--png-sizes', '512']);
+			expect(result.exitCode).toBe(0);
+
+			const updated = await Bun.file(file).text();
+			expect(updated).toContain('<link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">');
+			expect(updated).toContain('<link rel="icon" type="image/png" href="/favicon-512x512.png" sizes="512x512">');
+			// The combined ICO link survives alongside them.
+			expect(updated).toContain('href="/favicon.ico"');
+		});
+
+		it('emits no PNG links when --png-sizes is absent', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+
+			await runCommand(inject, [file]);
+			expect(await Bun.file(file).text()).not.toContain('image/png');
+		});
+
+		it('derives the PNG filenames from --output, matching generate', async () => {
+			const dir = await setupTmp();
+			await Bun.write(join(dir, 'icon.svg'), await Bun.file(FIXTURE).text());
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+
+			const written = await runCommand(
+				generate,
+				[join(dir, 'icon.svg'), '-o', 'logo.ico', '--sizes', '16', '--emit-sizes', 'png'],
+			);
+			expect(written.exitCode).toBe(0);
+			expect(await Bun.file(join(dir, 'logo-16x16.png')).exists()).toBe(true);
+
+			await runCommand(inject, [file, '-o', 'logo.ico', '--sizes', '16', '--png-sizes', '16']);
+			expect(await Bun.file(file).text()).toContain('href="/logo-16x16.png"');
+		});
+
+		it('--png-sizes honors --base', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+
+			await runCommand(inject, [file, '--png-sizes', '192', '--base', '/repo/']);
+			expect(await Bun.file(file).text()).toContain('href="/repo/favicon-192x192.png"');
+		});
+
+		it('--png-sizes with --embed inlines the PNG instead of referencing it', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+			await Bun.write(join(dir, 'favicon.ico'), Buffer.from([0, 0, 1, 0]));
+			const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+			await Bun.write(join(dir, 'favicon-192x192.png'), png);
+
+			const result = await runCommand(inject, [file, '--png-sizes', '192', '--embed']);
+			expect(result.exitCode).toBe(0);
+
+			const updated = await Bun.file(file).text();
+			expect(updated).toContain(`href="data:image/png;base64,${png.toString('base64')}"`);
+			expect(updated).not.toContain('href="/favicon-192x192.png"');
+		});
+
+		it('rejects a PNG size outside 1–4096', async () => {
+			const dir = await setupTmp();
+			const file = join(dir, 'index.html');
+			await Bun.write(file, '<head></head>');
+
+			const result = await runCommand(inject, [file, '--png-sizes', '8192']);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.stderr.join('')).toContain('must be <= 4096');
+		});
+
 		it('reports per-file outcomes on stdout under --json', async () => {
 			const dir = await setupTmp();
 			const file = join(dir, 'index.html');

@@ -3,8 +3,8 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { blue, green, red } from 'ansispeck/safe';
 import { arg, CLIError, command, flag } from 'dreamcli';
-import { DEFAULT_ICO_FILENAME, outputFlag } from '#cli/flags/output';
-import { sizesFlag } from '#cli/flags/sizes';
+import { DEFAULT_ICO_FILENAME, icoStem, outputFlag } from '#cli/flags/output';
+import { pngSizesFlag, sizesFlag } from '#cli/flags/sizes';
 import { toDataUri } from '#dataUri';
 import { buildFaviconTags, type TagContext } from '#faviconTags';
 import { injectTagsIntoHtml } from '#injectHtml';
@@ -47,6 +47,7 @@ The ICO/SVG files themselves are expected to already exist at the configured pat
 			),
 	)
 	.flag('sizes', sizesFlag())
+	.flag('png-sizes', pngSizesFlag())
 	.flag(
 		'base',
 		flag
@@ -127,7 +128,18 @@ Defaults to each HTML file's own directory.`,
 			throw new CLIError('At least one HTML file path is required', { code: 'MISSING_FILES' });
 		}
 		const sourceName = flags.source;
+		const pngSizes = flags['png-sizes'];
 		const specs: EmitSpec[] = [{ format: 'ico', sizes: flags.sizes, filename: flags.output, inject: true }];
+		if (pngSizes.length > 0) {
+			specs.push({
+				format: 'png',
+				sizes: pngSizes,
+				// Same stem generate hangs its per-size files off, so a custom
+				// --output keeps both sides pointing at one filename.
+				filenameTemplate: `${icoStem(flags.output)}-{size}x{size}.png`,
+				inject: true,
+			});
+		}
 		if (sourceName) specs.push({ format: 'svg', filename: sourceName, inject: true });
 		const { injections } = resolveSpecs(specs, { inputFormat: flags['input-format'] });
 
