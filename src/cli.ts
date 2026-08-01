@@ -46,7 +46,7 @@
  * ```
  */
 
-import { blue } from 'ansispeck';
+import { blue } from 'ansispeck/safe';
 import { cli } from 'dreamcli';
 import { generate } from '#cli/commands/generate';
 import { inject } from '#cli/commands/inject';
@@ -63,7 +63,7 @@ import { inject } from '#cli/commands/inject';
 export const app = cli('svg-to-ico')
 	.manifest({ from: import.meta.url })
 	.links()
-	.description(`Generate ICO favicons and inject ${blue('<link>')} tags into HTML files`)
+	.description(`Generate ICO favicons and inject ${blue`<link>`} tags into HTML files`)
 	.default(generate, { route: true })
 	.command(inject)
 	.completions();

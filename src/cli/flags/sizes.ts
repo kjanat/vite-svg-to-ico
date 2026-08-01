@@ -1,4 +1,4 @@
-import { blue } from 'ansispeck';
+import { blue } from 'ansispeck/safe';
 import { flag } from 'dreamcli';
 
 /**
@@ -11,4 +11,4 @@ export const sizesFlag = () =>
 		.array(flag.number({ int: true, min: 1, max: 256 }))
 		.alias('s')
 		.default([16, 32, 48])
-		.describe(`Pixel sizes (integers 1–256). Pass repeated: ${blue('-s16 -s32 -s48')}.`);
+		.describe(`Pixel sizes (integers 1–256). Pass repeated: ${blue`-s16 -s32 -s48`}.`);
