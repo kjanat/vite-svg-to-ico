@@ -3,6 +3,7 @@ import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { cwd } from 'node:process';
+import { strip } from 'ansispeck';
 import { createOutput } from 'dreamcli';
 import { runCommand } from 'dreamcli/testkit';
 import { app } from '#cli';
@@ -42,7 +43,7 @@ describe('CLI', () => {
 			const result = await runCommand(generate, ['--help']);
 			expect(result.exitCode).toBe(0);
 
-			const help = result.stdout.join('\n');
+			const help = strip(result.stdout.join('\n'));
 			const flatHelp = help.replace(/\s+/g, ' ');
 			expect(flatHelp).toContain("Defaults to the source image's own directory");
 			// Guards a past bug: the rendering machine's absolute cwd leaking into help.
@@ -420,7 +421,9 @@ describe('CLI', () => {
 			const result = await app.execute(['--help'], { help: { width: 200 } });
 			expect(result.exitCode).toBe(0);
 
-			const help = result.stdout.join('\n');
+			// Stripped: ansispeck enables colour whenever CI is set, so the raw help
+			// carries escapes on a runner and none locally.
+			const help = strip(result.stdout.join('\n'));
 			expect(help).toContain('generate (default)');
 			expect(help).toContain('inject');
 			expect(help).toContain('$ svg-to-ico public/icon.svg');
